@@ -22,7 +22,10 @@ I don't plan to to actively maintain this extension, as this is just a something
 
 ## Install
 
-**Chrome Web Store:** coming soon.
+**Chrome Web Store:**
+
+[![Chrome Web Store Version](https://img.shields.io/chrome-web-store/v/jidllgipcneeonigpfaljejnmjodhkga?label=Chrome%20Web%20Store&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/simple-usage-tracker-for/jidllgipcneeonigpfaljejnmjodhkga)
+[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/jidllgipcneeonigpfaljejnmjodhkga)](https://chromewebstore.google.com/detail/simple-usage-tracker-for/jidllgipcneeonigpfaljejnmjodhkga)
 
 **Manually:**
 1. Download the latest zip from [Releases](../../releases) and unzip it.
