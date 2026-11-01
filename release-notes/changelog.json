@@ -8,6 +8,7 @@
       "Use a reset without opening Settings. Controls sit on the right: Use Reset changes to green Confirm and red Cancel buttons side by side, without shifting the reset text or showing an extra message.",
       "The update time and refresh button now sit below the usage bars, above the divider for Available Resets, in the toolbar popup.",
       "Smoother reset confirmation and a sliding Used/Left selector, with reduced-motion support.",
+      "Matching text colors in the popup and sidebar, with Usage spacing aligned to Projects and Recents.",
       "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
     ]
   },

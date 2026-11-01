@@ -2,18 +2,28 @@
    page defines them, so the bars follow light/dark mode; the literals are fallbacks. */
 
 .cgut-root {
-  --cgut-fg: #0d0d0d;
-  --cgut-fg-2: #5d5d5d;
-  --cgut-fg-3: #8f8f8f;
+  --cgut-fg: #1a1c1f;
+  --cgut-fg-2: color-mix(in oklab, var(--cgut-fg) 70%, transparent);
+  --cgut-fg-3: color-mix(in oklab, var(--cgut-fg) 50%, transparent);
   --cgut-bg: #ffffff;
 }
 
 :root[data-theme="dark"] .cgut-root,
 :root.dark .cgut-root {
-  --cgut-fg: #ededed;
-  --cgut-fg-2: #cdcdcd;
-  --cgut-fg-3: #afafaf;
+  --cgut-fg: #dfdfdf;
+  --cgut-fg-2: color-mix(in oklab, #ffffff 70%, transparent);
+  --cgut-fg-3: color-mix(in oklab, #ffffff 50%, transparent);
   --cgut-bg: #1b1b1b;
+}
+
+/* The popup follows the OS; an explicit ChatGPT theme takes precedence on the page. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]):not(.light):not(.dark) .cgut-root {
+    --cgut-fg: #dfdfdf;
+    --cgut-fg-2: color-mix(in oklab, #ffffff 70%, transparent);
+    --cgut-fg-3: color-mix(in oklab, #ffffff 50%, transparent);
+    --cgut-bg: #1b1b1b;
+  }
 }
 
 .cgut-root {
@@ -21,7 +31,7 @@
   --cgut-text-2: var(--app-color-text-foreground-secondary, var(--cgut-fg-2));
   --cgut-text-3: var(--app-color-text-foreground-tertiary, var(--cgut-fg-3));
   --cgut-surface: var(--app-color-background-elevated-primary, var(--cgut-bg));
-  --cgut-accent: var(--app-color-accent-blue, #3a83f7);
+  --cgut-accent: var(--app-color-accent-blue, #339cff);
   --cgut-warn: #e5484d;
   --cgut-ok: #2fb36d;
   --cgut-spend: #e2962f;

@@ -1,10 +1,6 @@
-/* The popup has no ChatGPT stylesheet behind it, so it defines the same theme variables the page
-   does and ui.css picks them up. */
+/* Text colours come from ui.css, shared with the sidebar. */
 
 :root {
-  --app-color-text-foreground: #0d0d0d;
-  --app-color-text-foreground-secondary: #5d5d5d;
-  --app-color-text-foreground-tertiary: #8f8f8f;
   --app-color-background-elevated-primary: #ffffff;
   --app-color-border: rgb(0 0 0 / 0.1);
   --app-color-button: #f3f3f3;
@@ -14,9 +10,6 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --app-color-text-foreground: #ededed;
-    --app-color-text-foreground-secondary: #cdcdcd;
-    --app-color-text-foreground-tertiary: #afafaf;
     --app-color-background-elevated-primary: #1b1b1b;
     --app-color-border: rgb(255 255 255 / 0.15);
     --app-color-button: #303030;
@@ -29,7 +22,7 @@ body {
   margin: 0;
   padding: 14px 16px 12px;
   background: var(--app-color-background-elevated-primary);
-  color: var(--app-color-text-foreground);
+  color: var(--cgut-text);
   font-family: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
 }
@@ -72,7 +65,7 @@ button {
   border: 1px solid var(--app-color-border);
   border-radius: 8px;
   background: var(--app-color-button);
-  color: var(--app-color-text-foreground);
+  color: var(--cgut-text);
   font: inherit;
   font-size: 12px;
   cursor: pointer;

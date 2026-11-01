@@ -114,22 +114,24 @@
 
 .cgut-sidebar {
   flex-shrink: 0;
+  color: var(--cgut-text);
   /* The following native section already supplies the gap at this insertion point. */
   margin-bottom: 0;
 }
 
-/* Match the native Pinned/Projects section headings, including their theme and text tokens. */
+/* Match the native Projects/Recents section inset and 36px browser toggle. */
 .cgut-sidebar-header {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 6px 16px;
+  min-height: max(36px, var(--height-token-row, 36px));
+  padding: 2px calc(var(--padding-row-x, 6px) + 10px);
   border: 0;
   background: none;
-  color: var(--text-tertiary, var(--cgut-text-3));
+  color: var(--cgut-text-3);
   font: inherit;
   font-size: var(--text-sm, 14px);
   font-weight: 500;
@@ -173,5 +175,5 @@
 }
 
 .cgut-sidebar-body {
-  padding: 4px 16px 6px;
+  padding: 4px calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px)) 6px;
 }
