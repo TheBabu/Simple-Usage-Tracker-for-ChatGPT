@@ -192,9 +192,9 @@
       this.credits = createCreditsRow();
       this.resets = el('section', 'cgut-resets');
       this.resets.hidden = true;
-      this.resets.setAttribute('aria-label', 'Available resets');
+      this.resets.setAttribute('aria-label', 'Available Resets');
       this.resetList = el('ul', 'cgut-reset-list');
-      this.resets.append(el('div', 'cgut-row-label', 'Available resets'), this.resetList);
+      this.resets.append(el('h3', 'cgut-reset-heading', 'Available Resets'), this.resetList);
       this.resetStatus = el('div', 'cgut-note');
       this.resetStatus.hidden = true;
       this.resetStatus.setAttribute('role', 'status');
@@ -247,44 +247,46 @@
         let row = this.resetRows.get(reset.id);
         if (!row) {
           const root = el('li', 'cgut-reset-item');
+          const details = el('div', 'cgut-reset-details');
           const title = el('div', 'cgut-reset-title');
           const expiry = el('div', 'cgut-row-sub');
-          const prompt = el('div', 'cgut-note', 'Use this reset now? This consumes one available reset.');
-          prompt.hidden = true;
           const actions = el('div', 'cgut-reset-actions');
-          const button = el('button', 'cgut-reset-button', 'Use reset');
-          const cancel = el('button', 'cgut-reset-button', 'Cancel');
+          const button = el('button', 'cgut-reset-button', 'Use Reset');
+          const cancel = el('button', 'cgut-reset-button cgut-reset-cancel', 'Cancel');
           button.type = cancel.type = 'button';
           cancel.hidden = true;
+          details.append(title, expiry);
           actions.append(button, cancel);
-          root.append(title, expiry, prompt, actions);
-          row = { root, title, expiry, prompt, button, cancel, confirming: false, requestId: null };
+          root.append(details, actions);
+          row = { root, title, expiry, button, cancel, confirming: false, requestId: null };
           const accountId = this.resetAccount;
           button.addEventListener('click', () => {
             if (this.resetPending) return;
             if (row.confirming) this.useReset(accountId, reset.id, row);
             else {
               row.confirming = true;
-              prompt.hidden = cancel.hidden = false;
-              button.textContent = 'Confirm reset';
-              button.setAttribute('aria-label', `Confirm reset: ${row.title.textContent}`);
+              cancel.hidden = false;
+              button.classList.add('cgut-reset-confirm');
+              button.textContent = 'Confirm Reset';
+              button.setAttribute('aria-label', `Confirm Reset: ${row.title.textContent}`);
             }
           });
           cancel.addEventListener('click', () => {
             row.confirming = false;
-            prompt.hidden = cancel.hidden = true;
-            button.textContent = 'Use reset';
-            button.setAttribute('aria-label', `Use reset: ${row.title.textContent}`);
+            cancel.hidden = true;
+            button.classList.remove('cgut-reset-confirm');
+            button.textContent = 'Use Reset';
+            button.setAttribute('aria-label', `Use Reset: ${row.title.textContent}`);
             button.focus();
           });
           this.resetRows.set(reset.id, row);
           this.resetList.append(root);
         }
-        row.title.textContent = reset.title;
+        row.title.textContent = reset.title.replace(/\bresets?\b/g, (word) => 'R' + word.slice(1));
         row.expiry.textContent = reset.expiresAt === null ? 'No expiration date' : `Expires ${new Date(reset.expiresAt).toLocaleString(undefined, {
           year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
         })}`;
-        row.button.setAttribute('aria-label', `${row.confirming ? 'Confirm reset' : 'Use reset'}: ${reset.title}`);
+        row.button.setAttribute('aria-label', `${row.confirming ? 'Confirm Reset' : 'Use Reset'}: ${row.title.textContent}`);
         row.button.disabled = row.cancel.disabled = this.resetPending;
       }
     }
@@ -306,22 +308,23 @@
         if (!result?.ok) {
           // Keep the same request ID after an uncertain outcome, but not a definite rejection.
           if (result?.reuseRequestId === false) row.requestId = null;
-          throw new Error(result?.error || 'Could not confirm the reset. Refresh usage before trying again.');
+          throw new Error(result?.error || 'Could not confirm the Reset. Refresh usage before trying again.');
         }
         if (this.resetAccount === accountId) {
           this.usage = { ...this.usage, manualResets: (this.usage?.manualResets || []).filter((r) => r.id !== creditId) };
         }
       } catch (e) {
         if (this.resetAccount === accountId) {
-          this.resetStatus.textContent = e.message;
+          this.resetStatus.textContent = e.message.replace(/\bresets?\b/g, (word) => 'R' + word.slice(1));
           this.resetStatus.classList.add('cgut-note-warn');
           this.resetStatus.hidden = false;
         }
       } finally {
         this.resetPending = false;
         row.confirming = false;
-        row.prompt.hidden = row.cancel.hidden = true;
-        row.button.textContent = 'Use reset';
+        row.cancel.hidden = true;
+        row.button.classList.remove('cgut-reset-confirm');
+        row.button.textContent = 'Use Reset';
         this.renderResets(this.usage, Date.now());
       }
     }

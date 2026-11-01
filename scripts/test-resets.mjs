@@ -134,9 +134,18 @@ test('worker serializes duplicate reset requests and refreshes the selected acco
 
 // A small DOM double keeps interaction checks runnable with Node and no extension dependencies.
 function element() {
+  const classes = new Set();
   return {
     children: [], attributes: {}, listeners: {}, hidden: false, style: {}, dataset: {},
-    classList: { add() {}, remove() {}, toggle() {} },
+    classList: {
+      add(name) { classes.add(name); },
+      remove(name) { classes.delete(name); },
+      contains(name) { return classes.has(name); },
+      toggle(name, force) {
+        if (force ?? !classes.has(name)) classes.add(name);
+        else classes.delete(name);
+      },
+    },
     append(...nodes) {
       this.children.push(...nodes);
       for (const node of nodes) if (typeof node === 'object') node.parent = this;
@@ -168,12 +177,22 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
   panel.render({ usage: normalized });
   assert.equal(panel.resets.hidden, false);
   const row = panel.resetRows.get(credit.id);
+  assert.equal(panel.resets.children[0].textContent, 'Available Resets');
+  assert.equal(row.title.textContent, 'Weekly Reset');
+  assert.equal(row.button.textContent, 'Use Reset');
+  assert.equal(row.root.children.length, 2); // details and actions, with no confirmation message
+  assert.equal(row.root.children[0].children[0], row.title);
+  assert.equal(row.root.children[1].children[0], row.button);
   assert.ok(row.expiry.textContent.includes(String(new Date(future).getFullYear())));
   row.button.click();
   assert.equal(requests.length, 0);
   assert.equal(row.cancel.hidden, false);
+  assert.equal(row.button.textContent, 'Confirm Reset');
+  assert.equal(row.button.classList.contains('cgut-reset-confirm'), true);
+  assert.ok(row.cancel.className.includes('cgut-reset-cancel'));
   row.cancel.click();
   assert.equal(row.confirming, false);
+  assert.equal(row.button.classList.contains('cgut-reset-confirm'), false);
   assert.equal(requests.length, 0);
   row.button.click();
   // Periodic rendering must preserve the confirmation and its focused button.
@@ -201,7 +220,7 @@ test('failed resets require confirmation again, reuse IDs only for uncertain out
   let reuseRequestId = false;
   ctx.chrome = { runtime: { sendMessage: async (request) => {
     requests.push(request);
-    return { ok: false, error: 'Your usage does not need a reset right now.', reuseRequestId };
+    return { ok: false, error: 'Your usage does not need a Reset right now.', reuseRequestId };
   } } };
   vm.runInContext(readFileSync(new URL('../shared/ui.js', import.meta.url), 'utf8'), ctx);
   const panel = new ctx.CGUT.ui.UsagePanel();
@@ -213,6 +232,7 @@ test('failed resets require confirmation again, reuse IDs only for uncertain out
   await new Promise(setImmediate);
   assert.equal(panel.resetStatus.hidden, false);
   assert.match(panel.resetStatus.textContent, /does not need/);
+  assert.match(panel.resetStatus.textContent, /a Reset/);
   assert.equal(row.button.disabled, false);
   row.button.click();
   row.button.click();

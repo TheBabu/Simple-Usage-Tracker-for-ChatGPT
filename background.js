@@ -113,17 +113,17 @@ async function useReset(message) {
     const { usage } = await chrome.storage.local.get('usage');
     const reset = usage?.accountId === message.accountId && usage.manualResets?.find((r) => r.id === message.creditId);
     if (!reset || (reset.expiresAt !== null && reset.expiresAt <= Date.now())) {
-      return { ok: false, error: 'This reset is no longer available. Refresh usage and try again.' };
+      return { ok: false, error: 'This Reset is no longer available. Refresh usage and try again.' };
     }
     shouldRefresh = true;
     try {
       await CGUT.consumeReset(message);
       // Remove it before refreshing so other tabs cannot submit the same reset in the meantime.
       await chrome.storage.local.set({ usage: { ...usage, manualResets: usage.manualResets.filter((r) => r.id !== reset.id) } });
-      await appendLog('Used a manual usage reset');
+      await appendLog('Used a manual usage Reset');
       return { ok: true };
     } catch (e) {
-      return { ok: false, error: e.message || 'Could not confirm the reset. Refresh usage before trying again.', reuseRequestId: e.code !== 'reset-rejected' };
+      return { ok: false, error: e.message || 'Could not confirm the Reset. Refresh usage before trying again.', reuseRequestId: e.code !== 'reset-rejected' };
     }
   });
   if (!shouldRefresh) return result;

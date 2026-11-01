@@ -1,6 +1,6 @@
 # Simple Usage Tracker for ChatGPT
 
-See your ChatGPT usage limits without leaving the chat. Inspired by [lugia19's Claude Usage Tracker](https://github.com/lugia19/Claude-Usage-Extension).
+See your ChatGPT usage limits, credits and available manual resets without leaving the chat. Inspired by [lugia19's Claude Usage Tracker](https://github.com/lugia19/Claude-Usage-Extension).
 
 <img width="1000" alt="The Usage section in the sidebar and the usage bar in the message box, showing how much is used: 5-hour 7% used, weekly 74% used" src="docs/screenshot-used.webp" />
 <img width="1000" alt="The same view showing how much is left: 5-hour 93% left, weekly 26% left" src="docs/screenshot-left.webp" />
@@ -14,6 +14,15 @@ See your ChatGPT usage limits without leaving the chat. Inspired by [lugia19's C
 - Available manual resets with expiration dates and a confirmation before use; hidden when none are available
 - Your credit balance, and how many credits a message used when it was paid for with credits
 - Updates on its own as you chat
+
+## What's new in v1.0
+
+Available manual resets appear below your usage in the sidebar and toolbar popup, with expiration
+dates in your local time zone. The section stays hidden when no resets are available.
+
+Click **Use Reset** on the right of a reset to reveal a green **Confirm Reset** button and a red
+**Cancel** button. Nothing is used until you confirm, and there is no extra confirmation popup or
+message. Your usage and available resets refresh afterward.
 
 Not affiliated with or endorsed by OpenAI.
 

@@ -1,10 +1,12 @@
 [
   {
-    "version": "0.4.3",
+    "version": "1.0.0",
     "date": "2026-11-01",
+    "title": "Usage and resets, together",
     "changes": [
       "Available manual resets now appear below your usage, with expiration dates, in the sidebar and toolbar popup.",
-      "Use a reset directly after confirming, without opening Settings. The reset section stays hidden when no resets are available."
+      "Use a reset without opening Settings. Controls sit on the right: Use Reset changes to a green Confirm Reset button, with a red Cancel button and no extra confirmation message.",
+      "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
     ]
   },
   {

@@ -150,7 +150,7 @@
 
   async function consumeReset({ accountId, creditId, requestId }) {
     if (!UUID_RE.test(accountId) || typeof creditId !== 'string' || !creditId || !UUID_RE.test(requestId)) {
-      throw new UsageError('Invalid reset request', 'invalid-reset');
+      throw new UsageError('Invalid Reset request', 'invalid-reset');
     }
     const auth = await getAuth(ORIGIN, accountId, null);
     // The credit is selected explicitly; never let a retry consume the next available reset.
@@ -168,11 +168,11 @@
     const result = await res.json();
     if (result.code === 'reset') return result;
     const messages = {
-      already_redeemed: 'This reset was already used.',
-      no_credit: 'This reset is no longer available.',
-      nothing_to_reset: 'Your usage does not need a reset right now.',
+      already_redeemed: 'This Reset was already used.',
+      no_credit: 'This Reset is no longer available.',
+      nothing_to_reset: 'Your usage does not need a Reset right now.',
     };
-    throw new UsageError(messages[result.code] || 'ChatGPT did not confirm the reset. Refresh usage before trying again.', 'reset-rejected');
+    throw new UsageError(messages[result.code] || 'ChatGPT did not confirm the Reset. Refresh usage before trying again.', 'reset-rejected');
   }
 
   function availableResets(data, now = Date.now()) {
@@ -184,7 +184,7 @@
         ? (value > 1e12 ? value : value * 1000) : Date.parse(value);
       if (expiresAt !== null && (!Number.isFinite(expiresAt) || expiresAt <= now)) return [];
       const title = typeof credit.title === 'string' ? credit.title.trim() : '';
-      return [{ id: credit.id, title: title || 'Usage reset', expiresAt }];
+      return [{ id: credit.id, title: title || 'Usage Reset', expiresAt }];
     }).sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
   }
 
