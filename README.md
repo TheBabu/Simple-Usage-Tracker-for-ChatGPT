@@ -15,24 +15,6 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
 - Your credit balance, and how many credits a message used when it was paid for with credits
 - Updates on its own as you chat
 
-## What's new in v1.0
-
-The **Available Resets** section appears below your usage in the sidebar and toolbar popup when
-your ChatGPT account has an unused, unexpired manual reset. Each reset shows its name and expiration
-date in your local time zone. The section stays hidden when none are available; the extension
-doesn't grant additional resets.
-
-1. Open **Usage** in the sidebar or click the extension's toolbar icon.
-2. Under **Available Resets**, click **Use Reset** beside the reset you want to use.
-3. Click the green **Confirm** button to use it, or the red **Cancel** button to keep it.
-
-Nothing is used until you confirm. The buttons appear side by side without shifting the reset's
-name or expiration date. After you use a reset, usage and the available reset list refresh
-automatically. If ChatGPT rejects the reset, the section shows the error.
-
-The popup and sidebar use matching text colors in light and dark mode. In the popup, the update
-time and refresh button sit below the usage bars, above the divider for **Available Resets**.
-
 Not affiliated with or endorsed by OpenAI.
 
 #### Developer note:
