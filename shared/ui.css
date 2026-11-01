@@ -216,6 +216,7 @@
 .cgut-reset-title {
   grid-column: 1;
   grid-row: 1;
+  align-self: end;
   color: var(--cgut-text);
 }
 
