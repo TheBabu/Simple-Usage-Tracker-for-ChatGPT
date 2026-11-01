@@ -65,7 +65,7 @@ function recordBalance(ledger, usage) {
 }
 
 async function storeUsage(fetched) {
-  const usage = CGUT.normalizeUsage(fetched.raw, fetched.fetchedAt, fetched.accountId);
+  const usage = CGUT.normalizeUsage(fetched.raw, fetched.fetchedAt, fetched.accountId, fetched.resetCredits);
   const { usage: previous, creditLedger = {} } = await chrome.storage.local.get(['usage', 'creditLedger']);
 
   // Tabs can finish fetches out of order; an older answer must not replace a newer one.
@@ -107,11 +107,43 @@ async function refreshNow() {
   }
 }
 
+async function useReset(message) {
+  let shouldRefresh = false;
+  const result = await serialized(async () => {
+    const { usage } = await chrome.storage.local.get('usage');
+    const reset = usage?.accountId === message.accountId && usage.manualResets?.find((r) => r.id === message.creditId);
+    if (!reset || (reset.expiresAt !== null && reset.expiresAt <= Date.now())) {
+      return { ok: false, error: 'This Reset is no longer available. Refresh usage and try again.' };
+    }
+    shouldRefresh = true;
+    try {
+      await CGUT.consumeReset(message);
+      // Remove it before refreshing so other tabs cannot submit the same reset in the meantime.
+      await chrome.storage.local.set({ usage: { ...usage, manualResets: usage.manualResets.filter((r) => r.id !== reset.id) } });
+      await appendLog('Used a manual usage Reset');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Could not confirm the Reset. Refresh usage before trying again.', reuseRequestId: e.code !== 'reset-rejected' };
+    }
+  });
+  if (!shouldRefresh) return result;
+  // Fetch this account directly: a tab may still have a pre-reset request in flight or skip a
+  // forced refresh because it polled recently.
+  try {
+    const fetched = await CGUT.fetchUsage({ accountHint: message.accountId });
+    await serialized(() => storeUsage(fetched));
+  } catch (e) {
+    await serialized(() => storeError(CGUT.errorRecord(e)));
+  }
+  return result;
+}
+
 const handlers = {
   'cgut:store': (message) => serialized(() => storeUsage(message.fetched)),
   'cgut:error': (message) => serialized(() => storeError(message.error)),
   'cgut:log': (message) => log(message.message),
   'cgut:refresh': () => refreshNow(),
+  'cgut:use-reset': (message) => useReset(message),
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

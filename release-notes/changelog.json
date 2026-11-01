@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.0.0",
+    "date": "2026-11-01",
+    "title": "Usage and resets, together",
+    "changes": [
+      "Available manual resets now appear below your usage, with expiration dates, in the sidebar and toolbar popup.",
+      "Use a reset without opening Settings. Controls sit on the right: Use Reset changes to green Confirm and red Cancel buttons side by side, without shifting the reset text or showing an extra message.",
+      "The update time and refresh button now sit below the usage bars, above the divider for Available Resets, in the toolbar popup.",
+      "Smoother reset confirmation and a sliding Used/Left selector, with reduced-motion support.",
+      "Matching text colors in the popup and sidebar, with Usage spacing aligned to Projects and Recents.",
+      "The message-box usage bar now works in Codex mode and stays available with newer Work, project and follow-up prompts.",
+      "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
+    ]
+  },
+  {
     "version": "0.4.2",
     "date": "2026-10-05",
     "changes": [

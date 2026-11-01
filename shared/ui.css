@@ -2,18 +2,28 @@
    page defines them, so the bars follow light/dark mode; the literals are fallbacks. */
 
 .cgut-root {
-  --cgut-fg: #0d0d0d;
-  --cgut-fg-2: #5d5d5d;
-  --cgut-fg-3: #8f8f8f;
+  --cgut-fg: #1a1c1f;
+  --cgut-fg-2: color-mix(in oklab, var(--cgut-fg) 70%, transparent);
+  --cgut-fg-3: color-mix(in oklab, var(--cgut-fg) 50%, transparent);
   --cgut-bg: #ffffff;
 }
 
 :root[data-theme="dark"] .cgut-root,
 :root.dark .cgut-root {
-  --cgut-fg: #ededed;
-  --cgut-fg-2: #cdcdcd;
-  --cgut-fg-3: #afafaf;
+  --cgut-fg: #dfdfdf;
+  --cgut-fg-2: color-mix(in oklab, #ffffff 70%, transparent);
+  --cgut-fg-3: color-mix(in oklab, #ffffff 50%, transparent);
   --cgut-bg: #1b1b1b;
+}
+
+/* The popup follows the OS; an explicit ChatGPT theme takes precedence on the page. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]):not(.light):not(.dark) .cgut-root {
+    --cgut-fg: #dfdfdf;
+    --cgut-fg-2: color-mix(in oklab, #ffffff 70%, transparent);
+    --cgut-fg-3: color-mix(in oklab, #ffffff 50%, transparent);
+    --cgut-bg: #1b1b1b;
+  }
 }
 
 .cgut-root {
@@ -21,7 +31,7 @@
   --cgut-text-2: var(--app-color-text-foreground-secondary, var(--cgut-fg-2));
   --cgut-text-3: var(--app-color-text-foreground-tertiary, var(--cgut-fg-3));
   --cgut-surface: var(--app-color-background-elevated-primary, var(--cgut-bg));
-  --cgut-accent: var(--app-color-accent-blue, #3a83f7);
+  --cgut-accent: var(--app-color-accent-blue, #339cff);
   --cgut-warn: #e5484d;
   --cgut-ok: #2fb36d;
   --cgut-spend: #e2962f;
@@ -177,6 +187,105 @@
   color: var(--cgut-warn);
 }
 
+/* ---------- Available manual resets ---------- */
+
+.cgut-resets {
+  border-top: 1px solid var(--cgut-track);
+  /* The heading's line box supplies the remaining space below the divider. */
+  padding-top: 7px;
+  font-size: 12px;
+}
+
+.cgut-reset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cgut-reset-heading {
+  margin: 0;
+  color: var(--cgut-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.cgut-reset-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.cgut-reset-details {
+  display: contents;
+}
+
+.cgut-reset-title {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  color: var(--cgut-text);
+}
+
+.cgut-reset-details > .cgut-row-sub {
+  /* The expiration needs the whole row, independent of loading-time sidebar widths. */
+  grid-column: 1 / -1;
+  grid-row: 2;
+  white-space: nowrap;
+}
+
+.cgut-reset-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  /* Reserve both buttons' space before confirmation so the reset details never reflow. */
+  width: 128px;
+  gap: 4px;
+}
+
+.cgut-reset-button {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--cgut-track);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cgut-text);
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 100ms ease;
+}
+
+.cgut-reset-button:active:not(:disabled) { transform: scale(0.97); }
+.cgut-reset-cancel:not([hidden]) { animation: cgut-reset-reveal 160ms ease-out; }
+
+@keyframes cgut-reset-reveal {
+  from { opacity: 0; transform: translateX(4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.cgut-reset-button:hover { background: var(--cgut-track); }
+.cgut-reset-confirm { --cgut-reset-accent: var(--cgut-ok); }
+.cgut-reset-cancel { --cgut-reset-accent: var(--cgut-warn); }
+.cgut-reset-confirm,
+.cgut-reset-cancel {
+  color: color-mix(in srgb, var(--cgut-text) 50%, var(--cgut-reset-accent));
+  border-color: color-mix(in srgb, var(--cgut-reset-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--cgut-reset-accent) 10%, transparent);
+}
+.cgut-reset-confirm:hover,
+.cgut-reset-cancel:hover { background: color-mix(in srgb, var(--cgut-reset-accent) 20%, transparent); }
+.cgut-reset-button:focus-visible { outline: 2px solid var(--cgut-accent); outline-offset: 2px; }
+.cgut-reset-button:disabled { opacity: 0.5; cursor: wait; }
+
 /* ---------- Tooltip ---------- */
 
 .cgut-tooltip {
@@ -204,7 +313,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cgut-fill,
-  .cgut-tooltip {
+  .cgut-tooltip,
+  .cgut-reset-button {
     transition: none;
   }
+  .cgut-reset-cancel:not([hidden]) { animation: none; }
+  .cgut-reset-button:active:not(:disabled) { transform: none; }
 }

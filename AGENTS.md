@@ -35,6 +35,7 @@ content scripts can't.
 Node 22 or newer.
 
 - `npm run build`: packs `dist/simple-tracker-for-chatgpt-v<version>.zip`.
+- `npm test`: checks reset handling and composer mode detection.
 - By hand: `chrome://extensions` → Developer mode → Load unpacked → the repo root. After an edit,
   press Reload on the extension, then reload the chatgpt.com tab for content script changes.
 
@@ -84,11 +85,11 @@ ChatGPT's markup changes often, and none of it is a public API.
     box with the live one. The bar never opens in the stand-in (`SELECTORS.composerLoading`), or
     it gets thrown out with it and comes back moments later.
   - The box is currently a CSS grid, so the bar gives itself a row below the others.
-- **Chat vs Work:** the bar only shows in Work mode. The mode is read from the input's placeholder
-  ("Work on anything"). While the page loads the placeholder is "Loading..." in either mode, which
-  says nothing, and the bar stays closed until the mode is known (see `barWanted`). ChatGPT's toggle
-  is labelled "Select chat surface" and its items carry `data-tpp-toggle-value`;
-  `SELECTORS.modeToggle` doesn't match it today.
+- **Chat vs Work/Codex:** the bar shows in Work and Codex. Mode detection prefers the home
+  Composer mode toggle and the Select chat surface button, then explicit surface URLs and known
+  placeholders. An unfamiliar placeholder must not be treated as Chat: project, plan and follow-up
+  prompts vary. Unknown modes use the initial five-second fallback in `barWanted`; the stand-in
+  composer stays excluded until it is replaced. Drafts keep the last known mode on that page.
 - **Checking a change to the bar for jitter:** record the box's and bar's geometry on every frame
   (sample in a task queued from `requestAnimationFrame`) while switching Chat ↔ Work. PR #5 has
   the method and the before/after numbers. ChatGPT's live bundle under `chatgpt.com/cdn/assets/`

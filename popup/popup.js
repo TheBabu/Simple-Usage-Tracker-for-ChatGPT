@@ -12,6 +12,7 @@
 
   const panel = new ui.UsagePanel();
   $('panel').append(panel.root);
+  panel.resets.before(document.querySelector('.popup-footer'));
   const displayInputs = document.querySelectorAll('input[name="usage-display"]');
   ui.installTooltips();
 
