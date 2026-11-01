@@ -181,7 +181,8 @@
 
 .cgut-resets {
   border-top: 1px solid var(--cgut-track);
-  padding-top: 10px;
+  /* The heading's line box supplies the remaining space below the divider. */
+  padding-top: 7px;
   font-size: 12px;
 }
 
