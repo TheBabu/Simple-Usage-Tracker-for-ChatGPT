@@ -204,16 +204,31 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
   margin-top: 8px;
   overflow-wrap: anywhere;
 }
 
+.cgut-reset-details {
+  display: contents;
+}
+
 .cgut-reset-title {
+  grid-column: 1;
+  grid-row: 1;
   color: var(--cgut-text);
 }
 
+.cgut-reset-details > .cgut-row-sub {
+  /* The expiration needs the whole row, independent of loading-time sidebar widths. */
+  grid-column: 1 / -1;
+  grid-row: 2;
+  white-space: nowrap;
+}
+
 .cgut-reset-actions {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
