@@ -229,7 +229,7 @@
 
 .cgut-reset-actions {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 1 / span 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
