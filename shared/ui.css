@@ -214,12 +214,17 @@
 
 .cgut-reset-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  /* Reserve both buttons' space before confirmation so the reset details never reflow. */
+  width: 128px;
   gap: 4px;
 }
 
 .cgut-reset-button {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
   border: 1px solid var(--cgut-track);
   border-radius: 6px;
   background: transparent;

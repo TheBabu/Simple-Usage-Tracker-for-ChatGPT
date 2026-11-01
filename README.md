@@ -20,9 +20,11 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
 Available manual resets appear below your usage in the sidebar and toolbar popup, with expiration
 dates in your local time zone. The section stays hidden when no resets are available.
 
-Click **Use Reset** on the right of a reset to reveal a green **Confirm Reset** button and a red
-**Cancel** button. Nothing is used until you confirm, and there is no extra confirmation popup or
-message. Your usage and available resets refresh afterward.
+Click **Use Reset** on the right of a reset to reveal green **Confirm** and red **Cancel** buttons
+side by side. Their space is reserved so reset names and dates stay in place. Nothing is used until
+you confirm, and there is no extra confirmation popup or message. Your usage and available resets
+refresh afterward. In the toolbar popup, the update time and refresh button sit below the usage
+bars, above the divider for Available Resets.
 
 Not affiliated with or endorsed by OpenAI.
 

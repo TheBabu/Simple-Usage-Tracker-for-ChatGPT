@@ -267,7 +267,7 @@
               row.confirming = true;
               cancel.hidden = false;
               button.classList.add('cgut-reset-confirm');
-              button.textContent = 'Confirm Reset';
+              button.textContent = 'Confirm';
               button.setAttribute('aria-label', `Confirm Reset: ${row.title.textContent}`);
             }
           });
@@ -302,6 +302,7 @@
       this.resetStatus.hidden = true;
       row.requestId ||= crypto.randomUUID();
       row.button.textContent = 'Resetting…';
+      row.cancel.hidden = true;
       this.renderResets(this.usage, Date.now());
       try {
         const result = await chrome.runtime.sendMessage({ type: 'cgut:use-reset', accountId, creditId, requestId: row.requestId });

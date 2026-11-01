@@ -5,7 +5,8 @@
     "title": "Usage and resets, together",
     "changes": [
       "Available manual resets now appear below your usage, with expiration dates, in the sidebar and toolbar popup.",
-      "Use a reset without opening Settings. Controls sit on the right: Use Reset changes to a green Confirm Reset button, with a red Cancel button and no extra confirmation message.",
+      "Use a reset without opening Settings. Controls sit on the right: Use Reset changes to green Confirm and red Cancel buttons side by side, without shifting the reset text or showing an extra message.",
+      "The update time and refresh button now sit below the usage bars, above the divider for Available Resets, in the toolbar popup.",
       "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
     ]
   },

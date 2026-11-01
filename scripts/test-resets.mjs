@@ -187,7 +187,7 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
   row.button.click();
   assert.equal(requests.length, 0);
   assert.equal(row.cancel.hidden, false);
-  assert.equal(row.button.textContent, 'Confirm Reset');
+  assert.equal(row.button.textContent, 'Confirm');
   assert.equal(row.button.classList.contains('cgut-reset-confirm'), true);
   assert.ok(row.cancel.className.includes('cgut-reset-cancel'));
   row.cancel.click();
