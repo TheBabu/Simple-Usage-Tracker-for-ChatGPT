@@ -177,6 +177,50 @@
   color: var(--cgut-warn);
 }
 
+/* ---------- Available manual resets ---------- */
+
+.cgut-resets {
+  border-top: 1px solid var(--cgut-track);
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.cgut-reset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cgut-reset-item {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.cgut-reset-title {
+  color: var(--cgut-text);
+}
+
+.cgut-reset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.cgut-reset-button {
+  border: 1px solid var(--cgut-track);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cgut-text);
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.cgut-reset-button:hover { background: var(--cgut-track); }
+.cgut-reset-button:focus-visible { outline: 2px solid var(--cgut-accent); outline-offset: 2px; }
+.cgut-reset-button:disabled { opacity: 0.5; cursor: wait; }
+
 /* ---------- Tooltip ---------- */
 
 .cgut-tooltip {

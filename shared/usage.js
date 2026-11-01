@@ -5,6 +5,7 @@
 (() => {
   const ORIGIN = 'https://chatgpt.com';
   const USAGE_PATH = '/backend-api/wham/usage';
+  const RESET_PATH = '/backend-api/wham/rate-limit-reset-credits';
   const SESSION_PATH = '/api/auth/session';
 
   const HOUR = 3600;
@@ -128,13 +129,63 @@
       }
       if (!res.ok) throw new UsageError(`Usage request failed (HTTP ${res.status})`, 'http', res.status);
 
+      let raw;
       try {
-        return { raw: await res.json(), accountId: auth.accountId, fetchedAt: Date.now() };
+        raw = await res.json();
       } catch {
         throw new UsageError('Usage response was not JSON', 'parse');
       }
+      // An unavailable reset endpoint must not hide ordinary usage or leave old resets actionable.
+      let resetCredits = null;
+      if (raw?.rate_limit_reset_credits?.available_count !== 0) {
+        try {
+          const resets = await fetch(base + RESET_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(10000) });
+          if (resets.ok) resetCredits = await resets.json();
+        } catch { /* Hide resets until their availability can be checked again. */ }
+      }
+      return { raw, resetCredits, accountId: auth.accountId, fetchedAt: Date.now() };
     }
     throw new UsageError('Usage request was rejected', 'http', 401);
+  }
+
+  async function consumeReset({ accountId, creditId, requestId }) {
+    if (!UUID_RE.test(accountId) || typeof creditId !== 'string' || !creditId || !UUID_RE.test(requestId)) {
+      throw new UsageError('Invalid reset request', 'invalid-reset');
+    }
+    const auth = await getAuth(ORIGIN, accountId, null);
+    // The credit is selected explicitly; never let a retry consume the next available reset.
+    const res = await fetch(ORIGIN + RESET_PATH + '/consume', {
+      method: 'POST', credentials: 'include', cache: 'no-store',
+      signal: AbortSignal.timeout(30000),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth.token}`, 'ChatGPT-Account-Id': accountId },
+      body: JSON.stringify({ credit_id: creditId, redeem_request_id: requestId }),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) cachedAuth = null;
+      throw new UsageError(`Reset request failed (HTTP ${res.status}). Refresh usage before trying again.`, 'http', res.status);
+    }
+    const result = await res.json();
+    if (result.code === 'reset') return result;
+    const messages = {
+      already_redeemed: 'This reset was already used.',
+      no_credit: 'This reset is no longer available.',
+      nothing_to_reset: 'Your usage does not need a reset right now.',
+    };
+    throw new UsageError(messages[result.code] || 'ChatGPT did not confirm the reset. Refresh usage before trying again.', 'reset-rejected');
+  }
+
+  function availableResets(data, now = Date.now()) {
+    if (!Array.isArray(data?.credits) || data.available_count === 0) return [];
+    return data.credits.flatMap((credit) => {
+      if (credit?.status !== 'available' || typeof credit.id !== 'string' || !credit.id) return [];
+      const value = credit.expires_at;
+      const expiresAt = value == null ? null : typeof value === 'number'
+        ? (value > 1e12 ? value : value * 1000) : Date.parse(value);
+      if (expiresAt !== null && (!Number.isFinite(expiresAt) || expiresAt <= now)) return [];
+      const title = typeof credit.title === 'string' ? credit.title.trim() : '';
+      return [{ id: credit.id, title: title || 'Usage reset', expiresAt }];
+    }).sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
   }
 
   // ---------- Normalizing ----------
@@ -174,7 +225,7 @@
     return isLong ? { session: null, weekly: only } : { session: only, weekly: null };
   }
 
-  function normalizeUsage(raw, fetchedAt, accountId = null) {
+  function normalizeUsage(raw, fetchedAt, accountId = null, resetCredits = null) {
     const rl = raw?.rate_limit || {};
     const { session, weekly } = classifyWindows(
       normalizeWindow(rl.primary_window, fetchedAt),
@@ -194,6 +245,7 @@
       weekly,
       limitReached: rl.limit_reached === true || rl.allowed === false,
       credits,
+      manualResets: availableResets(resetCredits, fetchedAt),
       raw,
     };
   }
@@ -285,6 +337,8 @@
     errorRecord,
     parseBootstrap,
     fetchUsage,
+    consumeReset,
+    availableResets,
     normalizeUsage,
     isOverLimit,
     hasCreditsInfo,

@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.4.3",
+    "date": "2026-11-01",
+    "changes": [
+      "Available manual resets now appear below your usage, with expiration dates, in the sidebar and toolbar popup.",
+      "Use a reset directly after confirming, without opening Settings. The reset section stays hidden when no resets are available."
+    ]
+  },
+  {
     "version": "0.4.2",
     "date": "2026-10-05",
     "changes": [

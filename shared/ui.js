@@ -190,8 +190,19 @@
       this.session = createLimitRow();
       this.weekly = createLimitRow();
       this.credits = createCreditsRow();
+      this.resets = el('section', 'cgut-resets');
+      this.resets.hidden = true;
+      this.resets.setAttribute('aria-label', 'Available resets');
+      this.resetList = el('ul', 'cgut-reset-list');
+      this.resets.append(el('div', 'cgut-row-label', 'Available resets'), this.resetList);
+      this.resetStatus = el('div', 'cgut-note');
+      this.resetStatus.hidden = true;
+      this.resetStatus.setAttribute('role', 'status');
+      this.resetRows = new Map();
+      this.resetAccount = null;
+      this.resetPending = false;
       this.note = el('div', 'cgut-note');
-      this.root.append(this.session.row, this.weekly.row, this.credits.row, this.note);
+      this.root.append(this.session.row, this.weekly.row, this.credits.row, this.resets, this.resetStatus, this.note);
     }
 
     // { usage, error, ledger } as kept in chrome.storage.local, and `display`, the "Show usage"
@@ -208,11 +219,111 @@
       const showCredits = hasCreditsInfo(usage);
       credits.row.hidden = !showCredits;
       if (showCredits) updateCreditsRow(credits, usage.credits, creditsUsedThisMonth(ledger, usage.accountId));
+      this.renderResets(usage, now);
 
       const message = this.noteText(usage, error);
       note.hidden = !message;
       note.textContent = message || '';
       note.classList.toggle('cgut-note-warn', !!error && (!usage || error.at > usage.fetchedAt));
+    }
+
+    renderResets(usage, now) {
+      if (this.resetAccount !== usage?.accountId) {
+        this.resetList.replaceChildren();
+        this.resetRows.clear();
+        this.resetAccount = usage?.accountId;
+        this.resetStatus.hidden = true;
+      }
+      this.usage = usage;
+      const resets = (usage?.manualResets || []).filter((r) => r.expiresAt === null || r.expiresAt > now);
+      this.resets.hidden = resets.length === 0;
+      for (const [id, row] of this.resetRows) {
+        if (!resets.some((r) => r.id === id)) {
+          row.root.remove();
+          this.resetRows.delete(id);
+        }
+      }
+      for (const reset of resets) {
+        let row = this.resetRows.get(reset.id);
+        if (!row) {
+          const root = el('li', 'cgut-reset-item');
+          const title = el('div', 'cgut-reset-title');
+          const expiry = el('div', 'cgut-row-sub');
+          const prompt = el('div', 'cgut-note', 'Use this reset now? This consumes one available reset.');
+          prompt.hidden = true;
+          const actions = el('div', 'cgut-reset-actions');
+          const button = el('button', 'cgut-reset-button', 'Use reset');
+          const cancel = el('button', 'cgut-reset-button', 'Cancel');
+          button.type = cancel.type = 'button';
+          cancel.hidden = true;
+          actions.append(button, cancel);
+          root.append(title, expiry, prompt, actions);
+          row = { root, title, expiry, prompt, button, cancel, confirming: false, requestId: null };
+          const accountId = this.resetAccount;
+          button.addEventListener('click', () => {
+            if (this.resetPending) return;
+            if (row.confirming) this.useReset(accountId, reset.id, row);
+            else {
+              row.confirming = true;
+              prompt.hidden = cancel.hidden = false;
+              button.textContent = 'Confirm reset';
+              button.setAttribute('aria-label', `Confirm reset: ${row.title.textContent}`);
+            }
+          });
+          cancel.addEventListener('click', () => {
+            row.confirming = false;
+            prompt.hidden = cancel.hidden = true;
+            button.textContent = 'Use reset';
+            button.setAttribute('aria-label', `Use reset: ${row.title.textContent}`);
+            button.focus();
+          });
+          this.resetRows.set(reset.id, row);
+          this.resetList.append(root);
+        }
+        row.title.textContent = reset.title;
+        row.expiry.textContent = reset.expiresAt === null ? 'No expiration date' : `Expires ${new Date(reset.expiresAt).toLocaleString(undefined, {
+          year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+        })}`;
+        row.button.setAttribute('aria-label', `${row.confirming ? 'Confirm reset' : 'Use reset'}: ${reset.title}`);
+        row.button.disabled = row.cancel.disabled = this.resetPending;
+      }
+    }
+
+    async useReset(accountId, creditId, row) {
+      if (this.resetPending || accountId !== this.resetAccount) return;
+      const reset = this.usage?.manualResets?.find((r) => r.id === creditId);
+      if (!reset || (reset.expiresAt !== null && reset.expiresAt <= Date.now())) {
+        this.renderResets(this.usage, Date.now());
+        return;
+      }
+      this.resetPending = true;
+      this.resetStatus.hidden = true;
+      row.requestId ||= crypto.randomUUID();
+      row.button.textContent = 'Resetting…';
+      this.renderResets(this.usage, Date.now());
+      try {
+        const result = await chrome.runtime.sendMessage({ type: 'cgut:use-reset', accountId, creditId, requestId: row.requestId });
+        if (!result?.ok) {
+          // Keep the same request ID after an uncertain outcome, but not a definite rejection.
+          if (result?.reuseRequestId === false) row.requestId = null;
+          throw new Error(result?.error || 'Could not confirm the reset. Refresh usage before trying again.');
+        }
+        if (this.resetAccount === accountId) {
+          this.usage = { ...this.usage, manualResets: (this.usage?.manualResets || []).filter((r) => r.id !== creditId) };
+        }
+      } catch (e) {
+        if (this.resetAccount === accountId) {
+          this.resetStatus.textContent = e.message;
+          this.resetStatus.classList.add('cgut-note-warn');
+          this.resetStatus.hidden = false;
+        }
+      } finally {
+        this.resetPending = false;
+        row.confirming = false;
+        row.prompt.hidden = row.cancel.hidden = true;
+        row.button.textContent = 'Use reset';
+        this.renderResets(this.usage, Date.now());
+      }
     }
 
     noteText(usage, error) {
