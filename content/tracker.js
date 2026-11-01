@@ -40,6 +40,7 @@
       { selector: '#prompt-textarea', closest: 'form', mode: 'after' },
     ],
     modeToggle: '[role="group"][aria-label="Composer mode"]',
+    surfaceToggle: 'button[aria-label="Select chat surface"]',
     sidebar: [
       { selector: '[data-app-action-sidebar-scroll]', mode: 'afterFirstChild' },
       { selector: '#history', mode: 'before' },
@@ -75,7 +76,7 @@
     pending: null,         // { startBalance, endedAt } for the reply in progress
     lastSpend: null,       // credits the last reply cost, when it cost any
     mountWarned: { bar: false, sidebar: false },
-    mode: null,            // 'work' | 'chat' | null (not known yet) for the current page
+    mode: null,            // 'work' | 'codex' | 'chat' | null (not known yet) for the current page
     modePath: null,
     modeSeen: false,       // a mode has been read since the page loaded
     composerBox: null,     // { input, box } last found by findComposerBox
@@ -307,7 +308,7 @@
   function barWanted() {
     if (!state.showBar) return false;
     if (freshErrorFor(currentUsage())?.code === 'signed-out') return false;
-    if (state.mode) return state.mode === 'work';
+    if (state.mode) return state.mode !== 'chat';
     return state.modeSeen || Date.now() - startedAt >= MODE_WAIT_MS;
   }
 
@@ -607,9 +608,8 @@
     return field.querySelector('[data-placeholder]')?.dataset.placeholder || field.getAttribute('aria-placeholder') || '';
   }
 
-  // The 5-hour and weekly limits only apply to Work. The mode comes from the Chat/Work toggle when
-  // it is on screen, else from the input's placeholder ("Work on anything"). The toggle is read by
-  // position (first button is Chat) so it works in any language.
+  // Show the bar in Work and Codex. Prefer explicit mode controls, then known placeholders.
+  // Unfamiliar prompts (including project, plan and follow-up prompts) do not imply Chat mode.
   //
   // While models and plugins load, ChatGPT's placeholder is "Loading..." in either mode, and an
   // empty one is a zero-width space (which trim() keeps). Neither says anything about the mode.
@@ -619,10 +619,19 @@
       const pressed = [...toggle.querySelectorAll('button')].findIndex((b) => b.getAttribute('aria-pressed') === 'true');
       if (pressed !== -1) return pressed === 0 ? 'chat' : 'work';
     }
+    const surface = document.querySelector(SELECTORS.surfaceToggle);
+    if (surface && isVisible(surface)) {
+      const mode = surface.textContent.match(/\b(chat|work|codex)\b/i)?.[1].toLowerCase();
+      if (mode) return mode;
+    }
+    const surfaceParam = new URLSearchParams(location.search).get('surface');
+    if (['chat', 'work', 'codex'].includes(surfaceParam)) return surfaceParam;
+    if (/^\/codex(?:\/|$)/.test(location.pathname)) return 'codex';
     const input = lastVisible(SELECTORS.composerInput);
     const placeholder = input ? placeholderOf(input).replace(/\u200b/g, '').trim() : '';
-    if (placeholder && !/^loading\b/i.test(placeholder)) return /\bwork\b/i.test(placeholder) ? 'work' : 'chat';
-    if (new URLSearchParams(location.search).get('surface') === 'work') return 'work';
+    if (/\bcodex\b/i.test(placeholder)) return 'codex';
+    if (/\bwork\b/i.test(placeholder)) return 'work';
+    if (/^(ask anything|message chatgpt)[.!?…]*$/i.test(placeholder)) return 'chat';
     return null;
   }
 
@@ -731,7 +740,7 @@
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      attributeFilter: ['aria-pressed', 'placeholder', 'data-placeholder'],
+      attributeFilter: ['aria-pressed', 'aria-placeholder', 'placeholder', 'data-placeholder'],
     });
     tickTimer = setInterval(tick, TICK_MS);
     setTimeout(queueMount, MODE_WAIT_MS - (Date.now() - startedAt)); // stop waiting for the mode

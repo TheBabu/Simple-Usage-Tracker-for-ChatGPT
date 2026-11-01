@@ -3,7 +3,7 @@
   "private": true,
   "description": "Chrome extension that shows ChatGPT's 5-hour, weekly and credit usage in the chat window.",
   "scripts": {
-    "test": "node --test scripts/test-resets.mjs",
+    "test": "node --test scripts/test-*.mjs",
     "build": "node scripts/build.mjs"
   },
   "engines": {
