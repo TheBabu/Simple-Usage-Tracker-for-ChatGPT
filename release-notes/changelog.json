@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.1.0",
+    "date": "2026-11-02",
+    "title": "Hide the native usage popup",
+    "changes": [
+      "ChatGPT's native remaining usage popup is now hidden by default; turn off \"Hide remaining usage popup\" under Options to show it.",
+      "The Options rows now use even vertical spacing."
+    ]
+  },
+  {
     "version": "1.0.0",
     "date": "2026-11-01",
     "title": "Usage and resets, together",
@@ -10,8 +19,7 @@
       "Smoother reset confirmation and a sliding Used/Left selector, with reduced-motion support.",
       "Matching text colors in the popup and sidebar, with Usage spacing aligned to Projects and Recents.",
       "The message-box usage bar now works in Codex mode and stays available with newer Work, project and follow-up prompts.",
-      "The reset section stays hidden when no resets are available, and usage refreshes after a reset.",
-      "ChatGPT's native remaining usage popup is now hidden by default; turn off \"Hide remaining usage popup\" under Options to show it."
+      "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
     ]
   },
   {
