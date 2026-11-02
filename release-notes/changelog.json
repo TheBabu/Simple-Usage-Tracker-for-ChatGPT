@@ -10,7 +10,8 @@
       "Smoother reset confirmation and a sliding Used/Left selector, with reduced-motion support.",
       "Matching text colors in the popup and sidebar, with Usage spacing aligned to Projects and Recents.",
       "The message-box usage bar now works in Codex mode and stays available with newer Work, project and follow-up prompts.",
-      "The reset section stays hidden when no resets are available, and usage refreshes after a reset."
+      "The reset section stays hidden when no resets are available, and usage refreshes after a reset.",
+      "ChatGPT's native usage remaining popup can now be turned off under Options; it remains on by default."
     ]
   },
   {

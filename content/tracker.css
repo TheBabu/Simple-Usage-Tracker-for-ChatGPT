@@ -1,5 +1,10 @@
 /* The composer bar and the sidebar section. Shared pieces (bars, rows, tooltip) are in ui.css. */
 
+/* ChatGPT's native low-usage card. The popup option can hide it without touching extension UI. */
+html.cgut-hide-usage-popup section[role="status"]:has(> button[aria-label="Usage details"]) {
+  display: none !important;
+}
+
 /* ---------- Composer bar ---------- */
 
 /* Opens and closes by growing its one row from nothing, so the composer box around it grows and

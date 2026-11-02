@@ -67,6 +67,7 @@
     ledger: {},
     collapsed: false,
     showBar: true,         // the popup's "Usage bar in the message box" option
+    showUsagePopup: true,  // the popup's "Usage remaining popup" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
     lastAttemptAt: 0,
@@ -104,6 +105,11 @@
 
   function log(message) {
     send({ type: 'cgut:log', message });
+  }
+
+  function setUsagePopupVisible(visible) {
+    state.showUsagePopup = visible;
+    document.documentElement.classList.toggle('cgut-hide-usage-popup', !visible);
   }
 
   // ---------- Usage for this page ----------
@@ -712,6 +718,7 @@
     clearTimeout(state.pollTimer);
     bar.root.remove();
     sidebar.root.remove();
+    document.documentElement.classList.remove('cgut-hide-usage-popup');
   }
 
   function tick() {
@@ -723,12 +730,13 @@
   }
 
   async function init() {
-    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'usageDisplay']);
+    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'showUsagePopup', 'usageDisplay']);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
+    setUsagePopupVisible(stored.showUsagePopup !== false);
     setCollapsed(stored.sidebarCollapsed === true);
 
     ui.installTooltips();
@@ -754,6 +762,7 @@
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar
       }
+      if (changes.showUsagePopup) setUsagePopupVisible(changes.showUsagePopup.newValue !== false);
       if (changes.usageDisplay) {
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
         render();

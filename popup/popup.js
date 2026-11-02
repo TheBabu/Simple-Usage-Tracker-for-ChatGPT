@@ -95,13 +95,16 @@
     input.addEventListener('change', () => chrome.storage.local.set({ usageDisplay: input.value }));
   }
 
-  // Someone who keeps the sidebar open already sees the same numbers there, so the bar in the
-  // message box can be turned off. Open chatgpt.com tabs pick the change up from storage.
+  // The composer bar and ChatGPT's own low-usage popup can be turned off independently. Existing
+  // installs default both to on, and open chatgpt.com tabs pick changes up from storage.
   const showBar = $('show-bar');
-  chrome.storage.local.get('showComposerBar').then(({ showComposerBar }) => {
-    showBar.checked = showComposerBar !== false;
+  const showUsagePopup = $('show-usage-popup');
+  chrome.storage.local.get(['showComposerBar', 'showUsagePopup']).then((options) => {
+    showBar.checked = options.showComposerBar !== false;
+    showUsagePopup.checked = options.showUsagePopup !== false;
   });
   showBar.addEventListener('change', () => chrome.storage.local.set({ showComposerBar: showBar.checked }));
+  showUsagePopup.addEventListener('change', () => chrome.storage.local.set({ showUsagePopup: showUsagePopup.checked }));
 
   // Opens the Release Notes page in a tab (a plain link would open it inside the popup).
   $('release-notes').addEventListener('click', (e) => {

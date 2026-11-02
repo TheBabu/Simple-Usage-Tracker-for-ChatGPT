@@ -7,6 +7,7 @@ const source = readFileSync(new URL('../content/tracker.js', import.meta.url), '
 
 function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1 } = {}) {
   let now = 10000;
+  const classes = new Set();
   const node = () => ({ append() {}, addEventListener() {}, getClientRects: () => [{}] });
   const input = { ...node(), matches: () => true, tagName: 'TEXTAREA', placeholder };
   const toggle = pressed < 0 ? null : {
@@ -23,7 +24,13 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
     CGUT: { ui },
     document: {
       createElement: node,
-      documentElement: { dataset: {} },
+      documentElement: {
+        dataset: {},
+        classList: {
+          toggle: (name, force) => force ? classes.add(name) : classes.delete(name),
+          remove: (name) => classes.delete(name),
+        },
+      },
       querySelector: (selector) => selector.includes('Composer mode') ? toggle
         : selector.includes('Select chat surface') && surface ? { ...node(), textContent: surface } : null,
       querySelectorAll: () => [input],
@@ -35,8 +42,12 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
   });
   // Inspect the real content-script decisions without starting polling or a browser lifecycle.
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.composer = { detectMode, updateMode, barWanted, state };'), ctx);
-  return { ...ctx.CGUT.composer, advance: () => { now += 6000; } };
+    '  CGUT.composer = { detectMode, updateMode, barWanted, setUsagePopupVisible, state };'), ctx);
+  return {
+    ...ctx.CGUT.composer,
+    advance: () => { now += 6000; },
+    hasClass: (name) => classes.has(name),
+  };
 }
 
 test('Work and Codex placeholders show the message-box bar', () => {
@@ -97,4 +108,15 @@ test('the popup setting still disables the bar in Work and Codex', () => {
     c.state.showBar = false;
     assert.equal(c.barWanted(), false);
   }
+});
+
+test('the popup setting hides and restores ChatGPT native usage card', () => {
+  const c = composer();
+  c.setUsagePopupVisible(false);
+  assert.equal(c.state.showUsagePopup, false);
+  assert.equal(c.hasClass('cgut-hide-usage-popup'), true);
+
+  c.setUsagePopupVisible(true);
+  assert.equal(c.state.showUsagePopup, true);
+  assert.equal(c.hasClass('cgut-hide-usage-popup'), false);
 });
