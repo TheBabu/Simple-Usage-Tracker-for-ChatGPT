@@ -10,6 +10,7 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
   toolbar popup)
 - Show usage as used or left: switch between them under "Options" in the
   toolbar popup
+- Hide ChatGPT's remaining usage popup: turn it on or off under "Options" in the toolbar popup
 - A Usage section in the sidebar, which you can collapse
 - Available manual resets with expiration dates and a confirmation before use (hidden when none are available)
 - Your credit balance, and how many credits a message used when it was paid for with credits
