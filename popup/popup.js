@@ -95,16 +95,16 @@
     input.addEventListener('change', () => chrome.storage.local.set({ usageDisplay: input.value }));
   }
 
-  // The composer bar and ChatGPT's own low-usage popup can be turned off independently. Existing
-  // installs default both to on, and open chatgpt.com tabs pick changes up from storage.
+  // The composer bar and ChatGPT's own low-usage popup can be controlled independently. The native
+  // popup is hidden by default; open chatgpt.com tabs pick changes up from storage.
   const showBar = $('show-bar');
-  const showUsagePopup = $('show-usage-popup');
-  chrome.storage.local.get(['showComposerBar', 'showUsagePopup']).then((options) => {
+  const hideUsagePopup = $('hide-usage-popup');
+  chrome.storage.local.get(['showComposerBar', 'hideUsagePopup']).then((options) => {
     showBar.checked = options.showComposerBar !== false;
-    showUsagePopup.checked = options.showUsagePopup !== false;
+    hideUsagePopup.checked = options.hideUsagePopup !== false;
   });
   showBar.addEventListener('change', () => chrome.storage.local.set({ showComposerBar: showBar.checked }));
-  showUsagePopup.addEventListener('change', () => chrome.storage.local.set({ showUsagePopup: showUsagePopup.checked }));
+  hideUsagePopup.addEventListener('change', () => chrome.storage.local.set({ hideUsagePopup: hideUsagePopup.checked }));
 
   // Opens the Release Notes page in a tab (a plain link would open it inside the popup).
   $('release-notes').addEventListener('click', (e) => {

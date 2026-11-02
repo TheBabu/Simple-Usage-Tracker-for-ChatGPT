@@ -67,7 +67,7 @@
     ledger: {},
     collapsed: false,
     showBar: true,         // the popup's "Usage bar in the message box" option
-    showUsagePopup: true,  // the popup's "Usage remaining popup" option
+    hideUsagePopup: true,  // the popup's "Hide remaining usage popup" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
     lastAttemptAt: 0,
@@ -107,9 +107,9 @@
     send({ type: 'cgut:log', message });
   }
 
-  function setUsagePopupVisible(visible) {
-    state.showUsagePopup = visible;
-    document.documentElement.classList.toggle('cgut-hide-usage-popup', !visible);
+  function setUsagePopupHidden(hidden) {
+    state.hideUsagePopup = hidden;
+    document.documentElement.classList.toggle('cgut-hide-usage-popup', hidden);
   }
 
   // ---------- Usage for this page ----------
@@ -730,13 +730,13 @@
   }
 
   async function init() {
-    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'showUsagePopup', 'usageDisplay']);
+    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'hideUsagePopup', 'usageDisplay']);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
-    setUsagePopupVisible(stored.showUsagePopup !== false);
+    setUsagePopupHidden(stored.hideUsagePopup !== false);
     setCollapsed(stored.sidebarCollapsed === true);
 
     ui.installTooltips();
@@ -762,7 +762,7 @@
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar
       }
-      if (changes.showUsagePopup) setUsagePopupVisible(changes.showUsagePopup.newValue !== false);
+      if (changes.hideUsagePopup) setUsagePopupHidden(changes.hideUsagePopup.newValue !== false);
       if (changes.usageDisplay) {
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
         render();

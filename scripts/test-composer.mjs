@@ -42,7 +42,7 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
   });
   // Inspect the real content-script decisions without starting polling or a browser lifecycle.
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.composer = { detectMode, updateMode, barWanted, setUsagePopupVisible, state };'), ctx);
+    '  CGUT.composer = { detectMode, updateMode, barWanted, setUsagePopupHidden, state };'), ctx);
   return {
     ...ctx.CGUT.composer,
     advance: () => { now += 6000; },
@@ -112,11 +112,11 @@ test('the popup setting still disables the bar in Work and Codex', () => {
 
 test('the popup setting hides and restores ChatGPT native usage card', () => {
   const c = composer();
-  c.setUsagePopupVisible(false);
-  assert.equal(c.state.showUsagePopup, false);
+  c.setUsagePopupHidden(true);
+  assert.equal(c.state.hideUsagePopup, true);
   assert.equal(c.hasClass('cgut-hide-usage-popup'), true);
 
-  c.setUsagePopupVisible(true);
-  assert.equal(c.state.showUsagePopup, true);
+  c.setUsagePopupHidden(false);
+  assert.equal(c.state.hideUsagePopup, false);
   assert.equal(c.hasClass('cgut-hide-usage-popup'), false);
 });
