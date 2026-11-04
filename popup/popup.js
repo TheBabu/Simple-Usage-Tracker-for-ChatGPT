@@ -95,16 +95,19 @@
     input.addEventListener('change', () => chrome.storage.local.set({ usageDisplay: input.value }));
   }
 
-  // The composer bar and ChatGPT's own low-usage popup can be controlled independently. The native
-  // popup is hidden by default; open chatgpt.com tabs pick changes up from storage.
+  // The composer bar, remaining-usage popup and usage-limit banner can be controlled independently.
+  // Both native notices are hidden by default; open chatgpt.com tabs follow storage changes.
   const showBar = $('show-bar');
   const hideUsagePopup = $('hide-usage-popup');
-  chrome.storage.local.get(['showComposerBar', 'hideUsagePopup']).then((options) => {
+  const hideUsageLimitBanner = $('hide-usage-limit-banner');
+  chrome.storage.local.get(['showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner']).then((options) => {
     showBar.checked = options.showComposerBar !== false;
     hideUsagePopup.checked = options.hideUsagePopup !== false;
+    hideUsageLimitBanner.checked = options.hideUsageLimitBanner !== false;
   });
   showBar.addEventListener('change', () => chrome.storage.local.set({ showComposerBar: showBar.checked }));
   hideUsagePopup.addEventListener('change', () => chrome.storage.local.set({ hideUsagePopup: hideUsagePopup.checked }));
+  hideUsageLimitBanner.addEventListener('change', () => chrome.storage.local.set({ hideUsageLimitBanner: hideUsageLimitBanner.checked }));
 
   // Opens the Release Notes page in a tab (a plain link would open it inside the popup).
   $('release-notes').addEventListener('click', (e) => {
