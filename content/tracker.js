@@ -117,6 +117,8 @@
 
   function setUsageLimitBannerHidden(hidden) {
     state.hideUsageLimitBanner = hidden;
+    // Recheck existing banners now, rather than waiting for the next mount or page reload.
+    markUsageLimitBanners();
     document.documentElement.classList.toggle('cgut-hide-usage-limit-banner', hidden);
   }
 
@@ -124,8 +126,10 @@
     for (const banner of document.querySelectorAll(SELECTORS.usageLimitBanner)) {
       const title = banner.querySelector('h3')?.textContent?.trim() || '';
       const isLimit = /^you['’]ve reached your .*usage limit\b/i.test(title);
-      if (banner.classList.contains('cgut-usage-limit-banner') !== isLimit) {
-        banner.classList.toggle('cgut-usage-limit-banner', isLimit);
+      banner.classList.toggle('cgut-usage-limit-banner', isLimit);
+      // Mark the outer flex item as well: hiding only the aside leaves an empty gap.
+      if (banner.parentElement?.classList.contains('contents')) {
+        banner.parentElement.parentElement?.classList.toggle('cgut-usage-limit-banner-wrapper', isLimit);
       }
     }
   }
