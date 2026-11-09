@@ -5,6 +5,12 @@ html.cgut-hide-usage-popup section[role="status"]:has(> button[aria-label="Usage
   display: none !important;
 }
 
+/* Hide the entire usage-limit banner wrapper so it leaves no blank space in the chat. */
+html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner-wrapper,
+html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner {
+  display: none !important;
+}
+
 /* ---------- Composer bar ---------- */
 
 /* Opens and closes by growing its one row from nothing, so the composer box around it grows and

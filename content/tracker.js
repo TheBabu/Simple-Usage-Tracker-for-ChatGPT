@@ -57,6 +57,8 @@
     // The request a reply streams over. Resource timing doesn't say the method, so this matches the
     // POST endpoint exactly and not /conversation/<id>, which loads an old conversation.
     replyStream: /\/backend-api\/(?:f\/)?conversation(?:[?#]|$)/,
+    // The large "You've reached your ... usage limit" notice above or below a conversation.
+    usageLimitBanner: 'aside[role="status"]',
   };
 
   const startedAt = Date.now();
@@ -68,6 +70,7 @@
     collapsed: false,
     showBar: true,         // the popup's "Usage bar in the message box" option
     hideUsagePopup: true,  // the popup's "Hide remaining usage popup" option
+    hideUsageLimitBanner: true, // the popup's "Hide usage limit reached banner" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
     lastAttemptAt: 0,
@@ -110,6 +113,32 @@
   function setUsagePopupHidden(hidden) {
     state.hideUsagePopup = hidden;
     document.documentElement.classList.toggle('cgut-hide-usage-popup', hidden);
+  }
+
+  function setUsageLimitBannerHidden(hidden) {
+    state.hideUsageLimitBanner = hidden;
+    // Recheck existing banners now, rather than waiting for the next mount or page reload.
+    markUsageLimitBanners();
+    document.documentElement.classList.toggle('cgut-hide-usage-limit-banner', hidden);
+  }
+
+  function markUsageLimitBanners() {
+    for (const banner of document.querySelectorAll(SELECTORS.usageLimitBanner)) {
+      const title = banner.querySelector('h3')?.textContent?.trim() || '';
+      // Work's exhaustion banner uses "You're out of Work usage for now" instead.
+      const isLimit = /^(?:you['’]ve reached your .*usage limit|you['’]re out of .*usage(?: for now)?)\b/i.test(title);
+      banner.classList.toggle('cgut-usage-limit-banner', isLimit);
+      // Mark the outer flex item as well: hiding only the aside leaves an empty gap.
+      if (banner.parentElement?.classList.contains('contents')) {
+        banner.parentElement.parentElement?.classList.toggle('cgut-usage-limit-banner-wrapper', isLimit);
+      }
+    }
+    // Work navigation can remove the banner while reusing the portal container.
+    for (const wrapper of document.querySelectorAll('.cgut-usage-limit-banner-wrapper')) {
+      if (!wrapper.querySelector('aside.cgut-usage-limit-banner')) {
+        wrapper.classList.remove('cgut-usage-limit-banner-wrapper');
+      }
+    }
   }
 
   // ---------- Usage for this page ----------
@@ -683,6 +712,7 @@
     if (!alive()) return teardown();
     // The mode first, so the bar opens or closes in the same frame as a Chat/Work switch.
     updateMode();
+    markUsageLimitBanners();
     const mounted = { bar: mountBar(), sidebar: mountSidebar() };
 
     updateStreaming();
@@ -718,7 +748,7 @@
     clearTimeout(state.pollTimer);
     bar.root.remove();
     sidebar.root.remove();
-    document.documentElement.classList.remove('cgut-hide-usage-popup');
+    document.documentElement.classList.remove('cgut-hide-usage-popup', 'cgut-hide-usage-limit-banner');
   }
 
   function tick() {
@@ -730,13 +760,14 @@
   }
 
   async function init() {
-    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'hideUsagePopup', 'usageDisplay']);
+    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay']);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
     setUsagePopupHidden(stored.hideUsagePopup !== false);
+    setUsageLimitBannerHidden(stored.hideUsageLimitBanner !== false);
     setCollapsed(stored.sidebarCollapsed === true);
 
     ui.installTooltips();
@@ -763,6 +794,10 @@
         queueMount(); // opens or closes the bar
       }
       if (changes.hideUsagePopup) setUsagePopupHidden(changes.hideUsagePopup.newValue !== false);
+      if (changes.hideUsageLimitBanner) {
+        setUsageLimitBannerHidden(changes.hideUsageLimitBanner.newValue !== false);
+        queueMount();
+      }
       if (changes.usageDisplay) {
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
         render();
