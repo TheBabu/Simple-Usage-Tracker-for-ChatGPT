@@ -125,11 +125,18 @@
   function markUsageLimitBanners() {
     for (const banner of document.querySelectorAll(SELECTORS.usageLimitBanner)) {
       const title = banner.querySelector('h3')?.textContent?.trim() || '';
-      const isLimit = /^you['’]ve reached your .*usage limit\b/i.test(title);
+      // Work's exhaustion banner uses "You're out of Work usage for now" instead.
+      const isLimit = /^(?:you['’]ve reached your .*usage limit|you['’]re out of .*usage(?: for now)?)\b/i.test(title);
       banner.classList.toggle('cgut-usage-limit-banner', isLimit);
       // Mark the outer flex item as well: hiding only the aside leaves an empty gap.
       if (banner.parentElement?.classList.contains('contents')) {
         banner.parentElement.parentElement?.classList.toggle('cgut-usage-limit-banner-wrapper', isLimit);
+      }
+    }
+    // Work navigation can remove the banner while reusing the portal container.
+    for (const wrapper of document.querySelectorAll('.cgut-usage-limit-banner-wrapper')) {
+      if (!wrapper.querySelector('aside.cgut-usage-limit-banner')) {
+        wrapper.classList.remove('cgut-usage-limit-banner-wrapper');
       }
     }
   }
