@@ -1,5 +1,5 @@
 // The in-page half of the extension: keeps usage fresh while chatgpt.com is open, and draws the bar
-// under the composer and the collapsible "Usage" section in the sidebar. Depends on
+// under the composer and the collapsible Usage and Available Resets sections in the sidebar. Depends on
 // shared/usage.js and shared/ui.js.
 'use strict';
 
@@ -68,6 +68,7 @@
     error: null,
     ledger: {},
     collapsed: false,
+    resetsCollapsed: false,
     showBar: true,         // the popup's "Usage bar in the message box" option
     hideUsagePopup: true,  // the popup's "Hide remaining usage popup" option
     hideUsageLimitBanner: true, // the popup's "Hide usage limit reached banner" option
@@ -409,35 +410,59 @@
 
   const CHEVRON_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>';
 
-  function createSidebar() {
-    const root = ui.el('section', 'cgut-root cgut-sidebar');
-    root.id = 'cgut-sidebar';
-
+  function createSidebarSection(titleText, bodyId, onToggle, root = ui.el('section')) {
+    root.classList.add('cgut-sidebar-section');
     const header = ui.el('button', 'cgut-sidebar-header');
     header.type = 'button';
-    const title = ui.el('span', 'cgut-sidebar-title', 'Usage');
+    header.setAttribute('aria-controls', bodyId);
+    const title = ui.el('span', 'cgut-sidebar-title', titleText);
     const chevron = ui.el('span', 'cgut-chevron');
     chevron.innerHTML = CHEVRON_SVG;
     header.append(title, chevron);
-    header.addEventListener('click', () => {
+    header.addEventListener('click', onToggle);
+    const body = ui.el('div', 'cgut-sidebar-body');
+    body.id = bodyId;
+    root.replaceChildren(header, body);
+    return { root, header, body };
+  }
+
+  function createSidebar() {
+    const root = ui.el('div', 'cgut-root cgut-sidebar');
+    root.id = 'cgut-sidebar';
+    const panel = new ui.UsagePanel();
+    const usage = createSidebarSection('Usage', 'cgut-sidebar-usage', () => {
       if (alive()) chrome.storage.local.set({ sidebarCollapsed: !state.collapsed });
     });
+    usage.body.append(panel.root);
 
-    const body = ui.el('div', 'cgut-sidebar-body');
-    const panel = new ui.UsagePanel();
-    body.append(panel.root);
+    // Reuse the reset section so the panel still hides it when the last reset expires or is used.
+    // Only the sidebar replaces its static heading; the toolbar popup keeps the shared layout.
+    const resets = createSidebarSection('Available Resets', 'cgut-sidebar-resets', () => {
+      if (alive()) chrome.storage.local.set({ sidebarResetsCollapsed: !state.resetsCollapsed });
+    }, panel.resets);
+    resets.body.classList.add('cgut-panel');
+    resets.body.append(panel.resetList, panel.resetStatus);
 
-    root.append(header, body);
-    return { root, header, body, panel };
+    root.append(usage.root, resets.root);
+    return { root, usage, resets, panel };
   }
 
   const sidebar = createSidebar();
 
   function setCollapsed(collapsed) {
     state.collapsed = collapsed;
-    sidebar.root.classList.toggle('cgut-collapsed', collapsed);
-    sidebar.body.hidden = collapsed;
-    sidebar.header.setAttribute('aria-expanded', String(!collapsed));
+    setSectionCollapsed(sidebar.usage, collapsed);
+  }
+
+  function setResetsCollapsed(collapsed) {
+    state.resetsCollapsed = collapsed;
+    setSectionCollapsed(sidebar.resets, collapsed);
+  }
+
+  function setSectionCollapsed(section, collapsed) {
+    section.root.classList.toggle('cgut-collapsed', collapsed);
+    section.body.hidden = collapsed;
+    section.header.setAttribute('aria-expanded', String(!collapsed));
   }
 
   function renderSidebar(now = Date.now()) {
@@ -760,7 +785,7 @@
   }
 
   async function init() {
-    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay']);
+    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay']);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
@@ -769,6 +794,7 @@
     setUsagePopupHidden(stored.hideUsagePopup !== false);
     setUsageLimitBannerHidden(stored.hideUsageLimitBanner !== false);
     setCollapsed(stored.sidebarCollapsed === true);
+    setResetsCollapsed(stored.sidebarResetsCollapsed === true);
 
     ui.installTooltips();
     render();
@@ -789,6 +815,7 @@
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
       if (changes.sidebarCollapsed) setCollapsed(changes.sidebarCollapsed.newValue === true);
+      if (changes.sidebarResetsCollapsed) setResetsCollapsed(changes.sidebarResetsCollapsed.newValue === true);
       if (changes.showComposerBar) {
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar

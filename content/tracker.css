@@ -175,16 +175,26 @@ html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner {
   transition: opacity 150ms ease, transform 150ms ease;
 }
 
-.cgut-sidebar:hover .cgut-chevron,
+.cgut-sidebar-section:hover .cgut-chevron,
 .cgut-sidebar-header:focus-visible .cgut-chevron,
-.cgut-sidebar.cgut-collapsed .cgut-chevron {
+.cgut-sidebar-section.cgut-collapsed .cgut-chevron {
   opacity: 1;
 }
 
-.cgut-sidebar.cgut-collapsed .cgut-chevron {
+.cgut-sidebar-section.cgut-collapsed .cgut-chevron {
   transform: none;
 }
 
 .cgut-sidebar-body {
   padding: 4px calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px)) 6px;
+}
+
+/* Both sidebar sections use the same header and body spacing, without the popup's divider. */
+.cgut-sidebar .cgut-resets {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.cgut-sidebar .cgut-reset-item:first-child {
+  margin-top: 0;
 }

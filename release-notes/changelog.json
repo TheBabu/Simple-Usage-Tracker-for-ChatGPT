@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.1",
+    "date": "2026-11-16",
+    "title": "Collapse available resets in the sidebar",
+    "changes": [
+      "Available Resets now has its own collapsible sidebar section, matching Usage's heading, chevron and spacing.",
+      "Usage and Available Resets remember their open or closed state independently. The toolbar popup keeps its existing layout."
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "2026-11-04",
     "title": "Hide the usage-limit banner",
