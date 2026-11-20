@@ -95,16 +95,22 @@
     input.addEventListener('change', () => chrome.storage.local.set({ usageDisplay: input.value }));
   }
 
-  // The composer bar, remaining-usage popup and usage-limit banner can be controlled independently.
   // Both native notices are hidden by default; open chatgpt.com tabs follow storage changes.
+  const hideSidebar = $('hide-sidebar');
+  const hideSidebarResets = $('hide-sidebar-resets');
   const showBar = $('show-bar');
   const hideUsagePopup = $('hide-usage-popup');
   const hideUsageLimitBanner = $('hide-usage-limit-banner');
-  chrome.storage.local.get(['showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner']).then((options) => {
+  const optionKeys = ['hideSidebar', 'hideSidebarResets', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner'];
+  chrome.storage.local.get(optionKeys).then((options) => {
+    hideSidebar.checked = options.hideSidebar === true;
+    hideSidebarResets.checked = options.hideSidebarResets === true;
     showBar.checked = options.showComposerBar !== false;
     hideUsagePopup.checked = options.hideUsagePopup !== false;
     hideUsageLimitBanner.checked = options.hideUsageLimitBanner !== false;
   });
+  hideSidebar.addEventListener('change', () => chrome.storage.local.set({ hideSidebar: hideSidebar.checked }));
+  hideSidebarResets.addEventListener('change', () => chrome.storage.local.set({ hideSidebarResets: hideSidebarResets.checked }));
   showBar.addEventListener('change', () => chrome.storage.local.set({ showComposerBar: showBar.checked }));
   hideUsagePopup.addEventListener('change', () => chrome.storage.local.set({ hideUsagePopup: hideUsagePopup.checked }));
   hideUsageLimitBanner.addEventListener('change', () => chrome.storage.local.set({ hideUsageLimitBanner: hideUsageLimitBanner.checked }));

@@ -5,14 +5,17 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
 
-function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1 } = {}) {
+function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1, chatComposer = false } = {}) {
   let now = 10000;
   const classes = new Set();
   const node = () => ({
     append() {}, replaceChildren() {}, addEventListener() {}, setAttribute() {},
-    classList: { add() {} }, getClientRects: () => [{}],
+    classList: { add() {} }, closest: () => null, getClientRects: () => [{}],
   });
-  const input = { ...node(), matches: () => true, tagName: 'TEXTAREA', placeholder };
+  const input = {
+    ...node(), matches: () => true, tagName: 'TEXTAREA', placeholder,
+    closest: (selector) => selector === '[data-chatgpt-composer]' && chatComposer ? {} : null,
+  };
   const toggle = pressed < 0 ? null : {
     ...node(),
     querySelectorAll: () => [0, 1].map((index) => ({ getAttribute: () => String(index === pressed) })),
@@ -34,9 +37,11 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
           remove: (name) => classes.delete(name),
         },
       },
-      querySelector: (selector) => selector.includes('Composer mode') ? toggle
-        : selector.includes('Select chat surface') && surface ? { ...node(), textContent: surface } : null,
-      querySelectorAll: () => [input],
+      querySelectorAll: (selector) => {
+        if (selector.includes('Composer mode')) return toggle ? [toggle] : [];
+        if (selector.includes('Select chat surface')) return surface ? [{ ...node(), textContent: surface }] : [];
+        return [input];
+      },
     },
     location: { search, pathname },
     Date: class extends Date { static now() { return now; } },
@@ -54,7 +59,7 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
 }
 
 test('Work and Codex placeholders show the message-box bar', () => {
-  for (const placeholder of ['Work on anything', 'Ask Codex to do anything in the cloud']) {
+  for (const placeholder of ['Work on anything', 'Work with ChatGPT', 'Ask Codex to do anything in the cloud', 'Do anything']) {
     const c = composer({ placeholder });
     c.updateMode();
     assert.equal(c.barWanted(), true);
@@ -81,6 +86,8 @@ test('new Work, plan, project and follow-up prompts are not mistaken for Chat', 
 test('Chat stays hidden and explicit controls take precedence over placeholders', () => {
   for (const options of [
     { placeholder: 'Ask anything' },
+    { placeholder: 'Ask ChatGPT' },
+    { placeholder: '', chatComposer: true },
     { placeholder: 'Work on anything', pressed: 0 },
     { placeholder: 'Ask Codex to do anything in the cloud', surface: 'Chat' },
   ]) {
@@ -116,10 +123,8 @@ test('the popup setting still disables the bar in Work and Codex', () => {
 test('the popup setting hides and restores ChatGPT native usage card', () => {
   const c = composer();
   c.setUsagePopupHidden(true);
-  assert.equal(c.state.hideUsagePopup, true);
   assert.equal(c.hasClass('cgut-hide-usage-popup'), true);
 
   c.setUsagePopupHidden(false);
-  assert.equal(c.state.hideUsagePopup, false);
   assert.equal(c.hasClass('cgut-hide-usage-popup'), false);
 });

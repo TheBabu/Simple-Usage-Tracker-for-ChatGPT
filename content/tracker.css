@@ -1,13 +1,15 @@
 /* The composer bar and the sidebar section. Shared pieces (bars, rows, tooltip) are in ui.css. */
 
-/* ChatGPT's native low-usage card. The popup option can hide it without touching extension UI. */
-html.cgut-hide-usage-popup section[role="status"]:has(> button[aria-label="Usage details"]) {
+/* Native low-usage cards may be wrapped for container queries. */
+html.cgut-hide-usage-popup .cgut-usage-popup,
+html.cgut-hide-usage-popup [class~="@container"]:has(> .cgut-usage-popup:only-child) {
   display: none !important;
 }
 
 /* Hide the entire usage-limit banner wrapper so it leaves no blank space in the chat. */
-html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner-wrapper,
-html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner {
+html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner,
+html.cgut-hide-usage-limit-banner [class~="@container"]:has(> .cgut-usage-limit-banner:only-child),
+html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-limit-banner:only-child) {
   display: none !important;
 }
 
@@ -17,6 +19,7 @@ html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner {
    shrinks smoothly. The clip hides the content while the row is shorter than it. */
 .cgut-bar {
   display: grid;
+  flex-shrink: 0;
   grid-template-rows: 1fr;
   width: 100%;
   /* Spans every column when the composer is a grid. */
@@ -193,6 +196,10 @@ html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner {
 .cgut-sidebar .cgut-resets {
   border-top: 0;
   padding-top: 0;
+}
+
+.cgut-sidebar .cgut-sidebar-resets-hidden {
+  display: none;
 }
 
 .cgut-sidebar .cgut-reset-item:first-child {

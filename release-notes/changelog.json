@@ -1,11 +1,13 @@
 [
   {
     "version": "1.2.1",
-    "date": "2026-11-16",
-    "title": "Collapse available resets in the sidebar",
+    "date": "2026-11-20",
+    "title": "Support the updated ChatGPT layout",
     "changes": [
-      "Available Resets now has its own collapsible sidebar section, matching Usage's heading, chevron and spacing.",
-      "Usage and Available Resets remember their open or closed state independently. The toolbar popup keeps its existing layout."
+      "The message-box usage bar, sidebar Usage section and native usage-notice settings work with the updated ChatGPT layout.",
+      "Use \"Hide tracker in the sidebar\" under Options to hide the tracker across ChatGPT tabs.",
+      "Usage and Available Resets are now separate sidebar dropdowns. Each remembers whether it is open.",
+      "Use \"Hide available resets in the sidebar\" under Options to hide just that section."
     ]
   },
   {
