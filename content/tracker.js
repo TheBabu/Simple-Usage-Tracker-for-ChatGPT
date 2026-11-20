@@ -26,15 +26,23 @@
   // stops the bar or the sidebar section from appearing, this is the place to look.
   const SELECTORS = {
     // The message input. The bar goes inside the rounded box drawn around it (see findComposerBox).
-    composerInput: '[data-composer-input], #prompt-textarea, main [contenteditable="true"], main textarea',
+    composerInputs: [
+      '[data-composer-placement] [data-composer-input]',
+      '[data-composer-input], #prompt-textarea',
+      'main [contenteditable="true"], main textarea',
+    ],
     // How far up from the input that box can be.
     composerRoot: '[data-composer-surface-variant], form',
+    composerPlacement: '[data-composer-placement]',
+    chatComposer: '[data-chatgpt-composer]',
+    inactive: '[hidden], [inert], [aria-hidden="true"], [data-app-shell-active-page="false"]',
     // A composer that is still loading. After a reload ChatGPT first shows a stand-in box (its input
     // is #pending-home-input, its send button is busy with a spinner) and replaces it with the live
     // one once its code has loaded.
-    composerLoading: '#pending-home-input, button[aria-busy="true"], #composer-submit-button [class*="animate-spin"]',
+    composerLoading: '#pending-home-input, #composer-submit-button[aria-busy="true"], #composer-submit-button [class*="animate-spin"]',
     // Where the bar goes when no box can be found.
     composer: [
+      { selector: '[data-composer-placement]', mode: 'after' },
       { selector: '[data-composer-surface-variant]', mode: 'inside' },
       { selector: 'form[data-type="unified-composer"]', mode: 'after' },
       { selector: '#prompt-textarea', closest: 'form', mode: 'after' },
@@ -44,21 +52,18 @@
     sidebar: [
       { selector: '[data-app-action-sidebar-scroll]', mode: 'afterFirstChild' },
       { selector: '#history', mode: 'before' },
-      { selector: 'nav[aria-label="Chat history"]', mode: 'append' },
+      { selector: 'nav[aria-label="Chat history"], [data-slate-sidebar-content] nav', mode: 'append' },
     ],
-    stopButton: [
-      'button[data-testid="stop-button"]',
-      'button[aria-label="Stop streaming"]',
-      'button[aria-label="Stop generating"]',
-      'button[aria-label="Stop"]',
-    ].join(','),
-    // Matched inside the composer box only, where the one "Stop…" button is the reply's.
-    stopButtonInBox: 'button[aria-label^="stop" i]',
+    sidebarSections: '.contents:has([data-app-action-sidebar-section])',
+    stopButton: 'button[data-testid="stop-button"]',
+    // Scope the generic "Stop" label to the active composer so other panels cannot trigger a refresh.
+    stopButtonInComposer: 'button:is([aria-label="Stop" i], [aria-label="Stop streaming" i], [aria-label="Stop generating" i])',
     // The request a reply streams over. Resource timing doesn't say the method, so this matches the
     // POST endpoint exactly and not /conversation/<id>, which loads an old conversation.
     replyStream: /\/backend-api\/(?:f\/)?conversation(?:[?#]|$)/,
-    // The large "You've reached your ... usage limit" notice above or below a conversation.
-    usageLimitBanner: 'aside[role="status"]',
+    usageNotice: 'aside[role="status"], aside:not([role]):has(h3), section[role="status"]',
+    usageNoticeTitle: 'h2, h3, [role="heading"]',
+    usageDetails: 'button[aria-label="Usage details"]',
   };
 
   const startedAt = Date.now();
@@ -68,9 +73,8 @@
     error: null,
     ledger: {},
     collapsed: false,
+    hideSidebar: false,   // the popup's "Hide tracker in the sidebar" option
     showBar: true,         // the popup's "Usage bar in the message box" option
-    hideUsagePopup: true,  // the popup's "Hide remaining usage popup" option
-    hideUsageLimitBanner: true, // the popup's "Hide usage limit reached banner" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
     lastAttemptAt: 0,
@@ -81,9 +85,8 @@
     lastSpend: null,       // credits the last reply cost, when it cost any
     mountWarned: { bar: false, sidebar: false },
     mode: null,            // 'work' | 'codex' | 'chat' | null (not known yet) for the current page
-    modePath: null,
+    modePage: null,
     modeSeen: false,       // a mode has been read since the page loaded
-    composerBox: null,     // { input, box } last found by findComposerBox
     barTarget: null,
     barOpen: false,        // shown, or opening
     barSpot: null,         // { node, inside } where the bar was last put
@@ -111,33 +114,23 @@
   }
 
   function setUsagePopupHidden(hidden) {
-    state.hideUsagePopup = hidden;
     document.documentElement.classList.toggle('cgut-hide-usage-popup', hidden);
   }
 
   function setUsageLimitBannerHidden(hidden) {
-    state.hideUsageLimitBanner = hidden;
-    // Recheck existing banners now, rather than waiting for the next mount or page reload.
-    markUsageLimitBanners();
     document.documentElement.classList.toggle('cgut-hide-usage-limit-banner', hidden);
   }
 
-  function markUsageLimitBanners() {
-    for (const banner of document.querySelectorAll(SELECTORS.usageLimitBanner)) {
-      const title = banner.querySelector('h3')?.textContent?.trim() || '';
-      // Work's exhaustion banner uses "You're out of Work usage for now" instead.
-      const isLimit = /^(?:you['’]ve reached your .*usage limit|you['’]re out of .*usage(?: for now)?)\b/i.test(title);
-      banner.classList.toggle('cgut-usage-limit-banner', isLimit);
-      // Mark the outer flex item as well: hiding only the aside leaves an empty gap.
-      if (banner.parentElement?.classList.contains('contents')) {
-        banner.parentElement.parentElement?.classList.toggle('cgut-usage-limit-banner-wrapper', isLimit);
-      }
-    }
-    // Work navigation can remove the banner while reusing the portal container.
-    for (const wrapper of document.querySelectorAll('.cgut-usage-limit-banner-wrapper')) {
-      if (!wrapper.querySelector('aside.cgut-usage-limit-banner')) {
-        wrapper.classList.remove('cgut-usage-limit-banner-wrapper');
-      }
+  function markUsageNotices() {
+    const limit = /^(?:you['’]ve (?:reached|hit) your .*?\busage limit|you['’]re out of (?:[\w -]+ )?usage)\b/i;
+    const warning = /^you['’]re approaching your usage limit\b/i;
+    for (const notice of document.querySelectorAll(SELECTORS.usageNotice)) {
+      if (notice.closest('.cgut-root')) continue;
+      const title = (notice.querySelector(SELECTORS.usageNoticeTitle)?.textContent || notice.textContent).trim();
+      const isLimit = limit.test(title);
+      const isWarning = warning.test(title) || !!notice.querySelector(SELECTORS.usageDetails);
+      notice.classList.toggle('cgut-usage-limit-banner', isLimit);
+      notice.classList.toggle('cgut-usage-popup', !isLimit && isWarning);
     }
   }
 
@@ -228,9 +221,10 @@
   // Two independent signals follow a reply, so a redesign that breaks one still leaves the other:
   // the stop button shows while it streams, and the browser records a resource timing entry for the
   // streamed request when it ends. Neither involves touching the page's own code.
-  function updateStreaming() {
-    const box = state.composerBox?.box;
-    const streaming = !!(document.querySelector(SELECTORS.stopButton) || box?.querySelector(SELECTORS.stopButtonInBox));
+  function updateStreaming(input) {
+    const composer = input?.closest(SELECTORS.composerPlacement) || input?.closest(SELECTORS.composerRoot);
+    const stop = composer && lastVisible(SELECTORS.stopButtonInComposer, composer);
+    const streaming = !!(stop || lastVisible(SELECTORS.stopButton));
     if (streaming === state.streaming) return;
     state.streaming = streaming;
     if (streaming) onReplyStarted();
@@ -455,13 +449,20 @@
   // ---------- Mounting ----------
 
   function isVisible(node) {
-    return node.getClientRects().length > 0;
+    return !node.closest(SELECTORS.inactive) && node.getClientRects().length > 0;
   }
 
   // The main composer is the last visible one: an inline "edit message" composer sits above it.
-  function lastVisible(selector) {
-    const nodes = [...document.querySelectorAll(selector)].filter(isVisible);
-    return nodes[nodes.length - 1] || null;
+  function lastVisible(selector, root = document) {
+    return Array.from(root.querySelectorAll(selector)).findLast(isVisible) || null;
+  }
+
+  function findComposerInput() {
+    for (const selector of SELECTORS.composerInputs) {
+      const input = lastVisible(selector);
+      if (input) return input;
+    }
+    return null;
   }
 
   // While ChatGPT animates the box's size (framer-motion layout animations, e.g. on a Chat/Work
@@ -491,22 +492,19 @@
   // element painting the box changes, and a remembered outer box can stay painted (in the page's
   // own color) after an inner one takes over, which left the bar stuck underneath the box.
   function findComposerBox(input) {
-    let box = null;
     for (let node = input.parentElement, depth = 0; node && node !== document.body && depth < 12; node = node.parentElement, depth++) {
-      if (paintsRoundedBox(node)) {
-        box = node;
-        break;
-      }
+      if (paintsRoundedBox(node)) return node;
       if (node.matches(SELECTORS.composerRoot)) break;
     }
-    state.composerBox = box && { input, box };
-    return box;
+    return null;
   }
 
-  function findComposer() {
-    const input = lastVisible(SELECTORS.composerInput);
+  function findComposer(input) {
     const box = input && findComposerBox(input);
     if (box) return { node: box, mode: 'inside' };
+
+    const placement = input?.closest(SELECTORS.composerPlacement);
+    if (placement) return { node: placement, mode: 'after' };
 
     for (const { selector, closest, mode } of SELECTORS.composer) {
       const nodes = [...document.querySelectorAll(selector)]
@@ -519,7 +517,7 @@
 
   function findSidebarAnchor() {
     for (const { selector, mode } of SELECTORS.sidebar) {
-      const node = document.querySelector(selector);
+      const node = lastVisible(selector);
       if (node) return { node, mode };
     }
     return null;
@@ -593,14 +591,19 @@
     }
   }
 
-  function mountBar() {
-    const target = findComposer();
+  function mountBar(input) {
+    const target = findComposer(input);
     if (!target) {
       dropBar();
       return false;
     }
     const { node, mode } = target;
     const inside = mode === 'inside' && !isRowFlex(node);
+    const root = input?.closest(SELECTORS.composerPlacement) || node.closest(SELECTORS.composerRoot) || node;
+    if (root.matches(SELECTORS.composerLoading) || root.querySelector(SELECTORS.composerLoading)) {
+      dropBar();
+      return true;
+    }
 
     if (!barWanted()) {
       setBarOpen(false);
@@ -614,11 +617,6 @@
     // The box was replaced or changed layout under the bar: take it out and open it again in the
     // new spot.
     if (state.barOpen) dropBar();
-    // A bar put in the stand-in box ChatGPT shows while it loads was thrown out with it moments
-    // later and came back in the live box. So it waits for the live box; the swap is a DOM change,
-    // so the observer looks again the moment it happens.
-    const root = node.closest(SELECTORS.composerRoot) || node;
-    if (root.matches(SELECTORS.composerLoading) || root.querySelector(SELECTORS.composerLoading)) return true;
     placeBar(node, inside);
     setBarOpen(true);
     return true;
@@ -648,36 +646,38 @@
   //
   // While models and plugins load, ChatGPT's placeholder is "Loading..." in either mode, and an
   // empty one is a zero-width space (which trim() keeps). Neither says anything about the mode.
-  function detectMode() {
-    const toggle = document.querySelector(SELECTORS.modeToggle);
-    if (toggle && isVisible(toggle)) {
+  function detectMode(input = findComposerInput()) {
+    const toggle = lastVisible(SELECTORS.modeToggle);
+    if (toggle) {
       const pressed = [...toggle.querySelectorAll('button')].findIndex((b) => b.getAttribute('aria-pressed') === 'true');
       if (pressed !== -1) return pressed === 0 ? 'chat' : 'work';
     }
-    const surface = document.querySelector(SELECTORS.surfaceToggle);
-    if (surface && isVisible(surface)) {
+    const surface = lastVisible(SELECTORS.surfaceToggle);
+    if (surface) {
       const mode = surface.textContent.match(/\b(chat|work|codex)\b/i)?.[1].toLowerCase();
       if (mode) return mode;
     }
     const surfaceParam = new URLSearchParams(location.search).get('surface');
     if (['chat', 'work', 'codex'].includes(surfaceParam)) return surfaceParam;
     if (/^\/codex(?:\/|$)/.test(location.pathname)) return 'codex';
-    const input = lastVisible(SELECTORS.composerInput);
+    if (input?.closest(SELECTORS.chatComposer)) return 'chat';
     const placeholder = input ? placeholderOf(input).replace(/\u200b/g, '').trim() : '';
     if (/\bcodex\b/i.test(placeholder)) return 'codex';
+    if (/^do anything[.!?…]*$/i.test(placeholder)) return 'codex';
     if (/\bwork\b/i.test(placeholder)) return 'work';
-    if (/^(ask anything|message chatgpt)[.!?…]*$/i.test(placeholder)) return 'chat';
+    if (/^(ask anything|ask chatgpt|message chatgpt)[.!?…]*$/i.test(placeholder)) return 'chat';
     return null;
   }
 
   // A rich-text input drops its placeholder once something is typed, so a page keeps the last mode
   // it saw until it navigates (see barWanted for what an unknown mode does).
-  function updateMode() {
-    if (location.pathname !== state.modePath) {
-      state.modePath = location.pathname;
+  function updateMode(input) {
+    const page = location.pathname + location.search;
+    if (page !== state.modePage) {
+      state.modePage = page;
       state.mode = null;
     }
-    const mode = detectMode() ?? state.mode;
+    const mode = detectMode(input) ?? state.mode;
     if (mode === state.mode) return;
     state.mode = mode;
     if (mode) state.modeSeen = true;
@@ -692,14 +692,22 @@
   }
 
   function mountSidebar() {
-    const target = findSidebarAnchor();
     const el = sidebar.root;
-    if (!target) return false;
+    const target = state.hideSidebar ? null : findSidebarAnchor();
+    if (!target) {
+      el.remove();
+      return state.hideSidebar;
+    }
     const { node, mode } = target;
     if (mode === 'afterFirstChild') {
-      const first = node.firstElementChild;
-      if (!first) node.append(el);
-      else if (first !== el && first.nextElementSibling !== el) first.after(el);
+      const first = node.firstElementChild === el ? el.nextElementSibling : node.firstElementChild;
+      if (!first) {
+        if (el.parentElement !== node) node.append(el);
+      } else if (first.matches(SELECTORS.sidebarSections)) {
+        if (first.previousElementSibling !== el) first.before(el);
+      } else if (first.nextElementSibling !== el) {
+        first.after(el);
+      }
     } else if (mode === 'before') {
       if (node.previousElementSibling !== el) node.before(el);
     } else if (node.lastElementChild !== el) {
@@ -711,11 +719,12 @@
   function ensureMounted() {
     if (!alive()) return teardown();
     // The mode first, so the bar opens or closes in the same frame as a Chat/Work switch.
-    updateMode();
-    markUsageLimitBanners();
-    const mounted = { bar: mountBar(), sidebar: mountSidebar() };
+    const input = findComposerInput();
+    updateMode(input);
+    markUsageNotices();
+    const mounted = { bar: mountBar(input), sidebar: mountSidebar() };
 
-    updateStreaming();
+    updateStreaming(input);
 
     if (Date.now() - startedAt < MOUNT_WARN_AFTER_MS) return;
     for (const key of ['bar', 'sidebar']) {
@@ -760,10 +769,14 @@
   }
 
   async function init() {
-    const stored = await chrome.storage.local.get(['usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay']);
+    const stored = await chrome.storage.local.get([
+      'usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'hideSidebar',
+      'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay',
+    ]);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
+    state.hideSidebar = stored.hideSidebar === true;
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
     setUsagePopupHidden(stored.hideUsagePopup !== false);
@@ -775,11 +788,14 @@
     ensureMounted();
 
     observer = new MutationObserver(queueMount);
-    // Attributes too, but only the ones a Chat/Work switch changes, so the bar hides immediately.
+    // The app can switch retained pages or turn Send into Stop without replacing the button.
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      attributeFilter: ['aria-pressed', 'aria-placeholder', 'placeholder', 'data-placeholder'],
+      attributeFilter: [
+        'aria-busy', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'placeholder',
+        'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder', 'hidden', 'inert',
+      ],
     });
     tickTimer = setInterval(tick, TICK_MS);
     setTimeout(queueMount, MODE_WAIT_MS - (Date.now() - startedAt)); // stop waiting for the mode
@@ -789,15 +805,16 @@
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
       if (changes.sidebarCollapsed) setCollapsed(changes.sidebarCollapsed.newValue === true);
+      if (changes.hideSidebar) {
+        state.hideSidebar = changes.hideSidebar.newValue === true;
+        mountSidebar();
+      }
       if (changes.showComposerBar) {
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar
       }
       if (changes.hideUsagePopup) setUsagePopupHidden(changes.hideUsagePopup.newValue !== false);
-      if (changes.hideUsageLimitBanner) {
-        setUsageLimitBannerHidden(changes.hideUsageLimitBanner.newValue !== false);
-        queueMount();
-      }
+      if (changes.hideUsageLimitBanner) setUsageLimitBannerHidden(changes.hideUsageLimitBanner.newValue !== false);
       if (changes.usageDisplay) {
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
         render();
