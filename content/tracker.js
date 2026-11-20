@@ -49,12 +49,14 @@
     ],
     modeToggle: '[role="group"][aria-label="Composer mode"]',
     surfaceToggle: 'button[aria-label="Select chat surface"]',
-    sidebar: [
-      { selector: '[data-app-action-sidebar-scroll]', mode: 'afterFirstChild' },
+    sidebarShell: '[data-sidebar-navigation-root], [data-slate-sidebar-content]',
+    sidebarInactive: '[data-sidebar-collapsed], [data-app-navigation-rail]',
+    sidebarScroll: '[data-app-action-sidebar-scroll]',
+    legacySidebar: [
       { selector: '#history', mode: 'before' },
-      { selector: 'nav[aria-label="Chat history"], [data-slate-sidebar-content] nav', mode: 'append' },
+      { selector: 'nav[aria-label="Chat history"]', mode: 'append' },
     ],
-    sidebarSections: '.contents:has([data-app-action-sidebar-section])',
+    sidebarSections: '[data-app-action-sidebar-section], .contents:has([data-app-action-sidebar-section])',
     stopButton: 'button[data-testid="stop-button"]',
     // Scope the generic "Stop" label to the active composer so other panels cannot trigger a refresh.
     stopButtonInComposer: 'button:is([aria-label="Stop" i], [aria-label="Stop streaming" i], [aria-label="Stop generating" i])',
@@ -65,6 +67,10 @@
     usageNoticeTitle: 'h2, h3, [role="heading"]',
     usageDetails: 'button[aria-label="Usage details"]',
   };
+
+  const SIDEBAR_ANCHORS = [
+    SELECTORS.sidebarShell, SELECTORS.sidebarScroll, ...SELECTORS.legacySidebar.map(({ selector }) => selector),
+  ].join(', ');
 
   const startedAt = Date.now();
 
@@ -539,9 +545,23 @@
     return null;
   }
 
+  function isSidebarVisible(node) {
+    return !node.closest(SELECTORS.sidebarInactive) && isVisible(node) && getComputedStyle(node).visibility === 'visible';
+  }
+
   function findSidebarAnchor() {
-    for (const { selector, mode } of SELECTORS.sidebar) {
-      const node = lastVisible(selector);
+    const shells = Array.from(document.querySelectorAll(SELECTORS.sidebarShell));
+    const shell = shells.findLast(isSidebarVisible);
+    if (shells.length && !shell) return null;
+
+    const scroll = Array.from((shell || document).querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
+    if (scroll) return { node: scroll, mode: 'afterFirstChild' };
+    // Destination views can replace the chat scroller or keep it mounted and hidden. Put Usage
+    // in the sidebar shell when the current view has no scroller of its own.
+    if (shell) return { node: shell, mode: 'prepend' };
+
+    for (const { selector, mode } of SELECTORS.legacySidebar) {
+      const node = Array.from(document.querySelectorAll(selector)).findLast(isSidebarVisible);
       if (node) return { node, mode };
     }
     return null;
@@ -734,6 +754,8 @@
       }
     } else if (mode === 'before') {
       if (node.previousElementSibling !== el) node.before(el);
+    } else if (mode === 'prepend') {
+      if (node.firstElementChild !== el) node.prepend(el);
     } else if (node.lastElementChild !== el) {
       node.append(el);
     }
@@ -768,6 +790,14 @@
       mountQueued = false;
       ensureMounted();
     });
+  }
+
+  function onMountMutations(records) {
+    // React can hide a retained sidebar with inline display:none. Ignore style and class changes
+    // elsewhere, including the composer's animation, unless they could hide a sidebar anchor.
+    if (records.some(({ attributeName, target }) =>
+      (attributeName !== 'class' && attributeName !== 'style') ||
+      target.matches(SIDEBAR_ANCHORS) || target.querySelector(SIDEBAR_ANCHORS))) queueMount();
   }
 
   // ---------- Lifecycle ----------
@@ -811,20 +841,22 @@
     render();
     ensureMounted();
 
-    observer = new MutationObserver(queueMount);
+    observer = new MutationObserver(onMountMutations);
     // The app can switch retained pages or turn Send into Stop without replacing the button.
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributeFilter: [
-        'aria-busy', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'placeholder',
-        'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder', 'hidden', 'inert',
+        'aria-busy', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'class', 'placeholder',
+        'data-app-action-sidebar-scroll', 'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder',
+        'data-sidebar-collapsed', 'data-sidebar-navigation-root', 'data-slate-sidebar-content', 'hidden', 'inert', 'style',
       ],
     });
     tickTimer = setInterval(tick, TICK_MS);
     setTimeout(queueMount, MODE_WAIT_MS - (Date.now() - startedAt)); // stop waiting for the mode
     document.addEventListener('transitionend', queueMount, true);
     document.addEventListener('animationend', queueMount, true);
+    window.addEventListener('resize', queueMount);
 
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;

@@ -5,7 +5,8 @@
     "title": "Support the updated ChatGPT layout",
     "changes": [
       "The message-box usage bar, sidebar Usage section and native usage-notice settings work with the updated ChatGPT layout.",
-      "Usage and Available Resets are now separate sidebar dropdowns. Each remembers whether it is open."
+      "Usage and Available Resets are now separate sidebar dropdowns. Each remembers whether it is open.",
+      "Usage stays available in the sidebar when switching between Home, Spaces, Scheduled, Plugins, and other destinations."
     ]
   },
   {
