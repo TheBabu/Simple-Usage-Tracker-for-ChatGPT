@@ -74,7 +74,6 @@
     ledger: {},
     collapsed: false,
     resetsCollapsed: false,
-    hideSidebar: false,   // the popup's "Hide tracker in the sidebar" option
     showBar: true,         // the popup's "Usage bar in the message box" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
@@ -718,10 +717,10 @@
 
   function mountSidebar() {
     const el = sidebar.root;
-    const target = state.hideSidebar ? null : findSidebarAnchor();
+    const target = findSidebarAnchor();
     if (!target) {
       el.remove();
-      return state.hideSidebar;
+      return false;
     }
     const { node, mode } = target;
     if (mode === 'afterFirstChild') {
@@ -796,12 +795,11 @@
   async function init() {
     const stored = await chrome.storage.local.get([
       'usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed',
-      'hideSidebar', 'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay',
+      'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay',
     ]);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
     state.ledger = stored.creditLedger || {};
-    state.hideSidebar = stored.hideSidebar === true;
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
     setUsagePopupHidden(stored.hideUsagePopup !== false);
@@ -832,10 +830,6 @@
       if (area !== 'local') return;
       if (changes.sidebarCollapsed) setCollapsed(changes.sidebarCollapsed.newValue === true);
       if (changes.sidebarResetsCollapsed) setResetsCollapsed(changes.sidebarResetsCollapsed.newValue === true);
-      if (changes.hideSidebar) {
-        state.hideSidebar = changes.hideSidebar.newValue === true;
-        mountSidebar();
-      }
       if (changes.showComposerBar) {
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar
