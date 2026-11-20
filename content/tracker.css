@@ -134,6 +134,7 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 /* ---------- Sidebar section ---------- */
 
 .cgut-sidebar {
+  --cgut-sidebar-inset: calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px));
   flex-shrink: 0;
   color: var(--cgut-text);
   /* The following native section already supplies the gap at this insertion point. */
@@ -149,7 +150,7 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   width: 100%;
   margin: 0;
   min-height: max(36px, var(--height-token-row, 36px));
-  padding: 2px calc(var(--padding-row-x, 6px) + 10px);
+  padding: 2px var(--cgut-sidebar-inset);
   border: 0;
   background: none;
   color: var(--cgut-text-3);
@@ -196,7 +197,7 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 }
 
 .cgut-sidebar-body {
-  padding: 4px calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px)) 6px;
+  padding: 4px var(--cgut-sidebar-inset) 6px;
 }
 
 /* Both sidebar sections use the same header and body spacing, without the popup's divider. */
@@ -210,6 +211,10 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 }
 
 /* Give the expiration its own line so it stays clear of the confirmation buttons. */
+.cgut-sidebar .cgut-reset-item {
+  row-gap: 2px;
+}
+
 .cgut-sidebar .cgut-reset-title {
   align-self: center;
 }
@@ -220,4 +225,23 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 
 .cgut-sidebar .cgut-reset-details > .cgut-row-sub {
   white-space: normal;
+}
+
+.cgut-sidebar .cgut-reset-list {
+  container-type: inline-size;
+}
+
+/* When reserving both buttons leaves too little room for the title, put the controls below. */
+@container (width < 12rem) {
+  .cgut-sidebar .cgut-reset-title,
+  .cgut-sidebar .cgut-reset-actions {
+    grid-column: 1 / -1;
+  }
+
+  .cgut-sidebar .cgut-reset-actions {
+    grid-row: 3;
+    justify-self: end;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
 }
