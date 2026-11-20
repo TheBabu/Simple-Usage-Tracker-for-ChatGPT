@@ -8,12 +8,30 @@ const source = readFileSync(new URL('../content/tracker.js', import.meta.url), '
 function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1, chatComposer = false } = {}) {
   let now = 10000;
   const classes = new Set();
-  const node = () => ({
-    append() {}, replaceChildren() {}, addEventListener() {}, setAttribute() {},
-    classList: { add() {} }, closest: () => null, getClientRects: () => [{}],
-  });
+  const timers = new Set();
+  const node = (_tag, className = '') => {
+    const ownClasses = new Set(className.split(' '));
+    return {
+      append() {}, replaceChildren() {}, addEventListener() {}, setAttribute() {},
+      classList: {
+        add: (name) => ownClasses.add(name),
+        remove: (name) => ownClasses.delete(name),
+        toggle: (name, force) => force ? ownClasses.add(name) : ownClasses.delete(name),
+        contains: (name) => ownClasses.has(name),
+      },
+      closest: () => null,
+      getClientRects: () => [{}],
+      getBoundingClientRect: () => ({ width: 0 }),
+      get isConnected() { return !!this.parentElement?.isConnected; },
+      remove() {
+        if (this.parentElement?.lastElementChild === this) this.parentElement.lastElementChild = null;
+        this.parentElement = null;
+      },
+      style: {},
+    };
+  };
   const input = {
-    ...node(), matches: () => true, tagName: 'TEXTAREA', placeholder,
+    ...node(), matches: (selector) => selector.includes('textarea'), tagName: 'TEXTAREA', placeholder,
     closest: (selector) => selector === '[data-chatgpt-composer]' && chatComposer ? {} : null,
   };
   const toggle = pressed < 0 ? null : {
@@ -28,6 +46,7 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
   };
   const ctx = vm.createContext({
     CGUT: { ui },
+    chrome: {},
     document: {
       createElement: node,
       documentElement: {
@@ -46,16 +65,61 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
     location: { search, pathname },
     Date: class extends Date { static now() { return now; } },
     URLSearchParams,
-    setTimeout() {},
+    getComputedStyle: (element) => ({ visibility: 'visible', ...element.computedStyle }),
+    setTimeout(callback) { timers.add(callback); return callback; },
+    clearTimeout: (callback) => timers.delete(callback),
   });
   // Inspect the real content-script decisions without starting polling or a browser lifecycle.
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.composer = { detectMode, updateMode, barWanted, setUsagePopupHidden, state };'), ctx);
+    '  CGUT.composer = { detectMode, updateMode, barWanted, mountBar, bar, setUsagePopupHidden, state };'), ctx);
   return {
     ...ctx.CGUT.composer,
     advance: () => { now += 6000; },
     hasClass: (name) => classes.has(name),
+    finishTimers() {
+      for (const callback of timers) callback();
+      timers.clear();
+    },
   };
+}
+
+function composerBox({ rows = 2, pending = false, loading = '' } = {}) {
+  const input = {
+    id: pending ? 'pending-home-input' : 'prompt-textarea',
+    matches: (selector) => pending && selector.includes('#pending-home-input'),
+    closest: () => null,
+  };
+  const box = {
+    tagName: 'DIV',
+    attributes: [],
+    isConnected: true,
+    matches: () => false,
+    closest: () => null,
+    getClientRects: () => [{}],
+    loading,
+    querySelector(selector) {
+      if (input.matches(selector)) return input;
+      if (this.loading && selector.includes(this.loading)) return {};
+      return null;
+    },
+    append(element) {
+      element.remove();
+      element.parentElement = this;
+      this.lastElementChild = element;
+    },
+    get computedStyle() {
+      const bar = this.lastElementChild;
+      const barRow = bar && !bar.hidden ? Number(bar.style.gridRowStart) || 0 : 0;
+      return {
+        display: 'grid',
+        borderTopLeftRadius: '24px',
+        backgroundColor: 'white',
+        gridTemplateRows: Array(Math.max(rows, barRow)).fill('18px').join(' '),
+      };
+    },
+  };
+  input.parentElement = box;
+  return { input, box };
 }
 
 test('Work and Codex placeholders show the message-box bar', () => {
@@ -127,4 +191,54 @@ test('the popup setting hides and restores ChatGPT native usage card', () => {
 
   c.setUsagePopupHidden(false);
   assert.equal(c.hasClass('cgut-hide-usage-popup'), false);
+});
+
+test('the bar waits for the live composer on page load', () => {
+  const c = composer();
+  c.state.mode = 'work';
+  c.mountBar(composerBox({ pending: true }).input);
+  assert.equal(c.bar.root.isConnected, false);
+  assert.equal(c.bar.root.hidden, true);
+
+  const { input, box } = composerBox({ loading: 'aria-busy' });
+  c.mountBar(input);
+  assert.equal(c.bar.root.isConnected, false);
+  box.loading = '';
+  c.mountBar(input);
+  assert.equal(c.bar.root.parentElement, box);
+  assert.equal(c.bar.root.hidden, false);
+});
+
+test('the bar stays open while a live composer sends a message', () => {
+  const c = composer();
+  c.state.mode = 'work';
+  const { input, box } = composerBox();
+  c.mountBar(input);
+  c.finishTimers();
+
+  for (const loading of ['aria-busy', 'animate-spin']) {
+    box.loading = loading;
+    c.mountBar(input);
+    assert.equal(c.bar.root.parentElement, box, loading);
+    assert.equal(c.bar.root.hidden, false, loading);
+    assert.equal(c.bar.root.classList.contains('cgut-bar-moving'), false, loading);
+  }
+});
+
+test('a replacement composer gets the same open bar in its own grid row', () => {
+  const c = composer();
+  c.state.mode = 'codex';
+  const initial = composerBox({ rows: 3 });
+  c.mountBar(initial.input);
+  c.finishTimers();
+  assert.equal(c.bar.root.style.gridRowStart, '4');
+
+  initial.box.isConnected = false;
+  const replacement = composerBox({ rows: 1, loading: 'aria-busy' });
+  c.mountBar(replacement.input);
+  assert.equal(c.bar.root.parentElement, replacement.box);
+  assert.equal(c.bar.root.hidden, false);
+  assert.equal(c.bar.root.classList.contains('cgut-bar-closed'), false);
+  assert.equal(c.bar.root.classList.contains('cgut-bar-moving'), false);
+  assert.equal(c.bar.root.style.gridRowStart, '2');
 });

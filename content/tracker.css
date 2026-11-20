@@ -37,6 +37,13 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   grid-template-rows: 0fr;
 }
 
+/* Keep the last position while ChatGPT swaps out the composer. */
+.cgut-bar.cgut-bar-handoff {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+}
+
 .cgut-bar-clip {
   min-height: 0;
 }

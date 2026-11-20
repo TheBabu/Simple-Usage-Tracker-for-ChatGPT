@@ -82,8 +82,8 @@ ChatGPT's markup changes often, and none of it is a public API.
   - After a reload ChatGPT first shows a stand-in box, built before its code runs: the input is
     `#pending-home-input`, the send button is `aria-busy` with a spinner, and there is no `<form>`.
     Once its code has loaded (the page is too busy to run anything else meanwhile) it replaces that
-    box with the live one. The bar never opens in the stand-in (`SELECTORS.composerLoading`), or
-    it gets thrown out with it and comes back moments later.
+    box with the live one. The bar waits for the live box on reload (`SELECTORS.composerStandIn`).
+    During a send, it stays open while ChatGPT swaps composers.
   - The box is currently a CSS grid, so the bar gives itself a row below the others.
 - **Chat vs Work/Codex:** the bar shows in Work and Codex. Mode detection prefers the home
   Composer mode toggle and the Select chat surface button, then explicit surface URLs and known

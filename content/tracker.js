@@ -36,10 +36,10 @@
     composerPlacement: '[data-composer-placement]',
     chatComposer: '[data-chatgpt-composer]',
     inactive: '[hidden], [inert], [aria-hidden="true"], [data-app-shell-active-page="false"]',
-    // A composer that is still loading. After a reload ChatGPT first shows a stand-in box (its input
-    // is #pending-home-input, its send button is busy with a spinner) and replaces it with the live
-    // one once its code has loaded.
-    composerLoading: '#pending-home-input, #composer-submit-button[aria-busy="true"], #composer-submit-button [class*="animate-spin"]',
+    // The reload stand-in is replaced when ChatGPT's code loads. The live Send button can also
+    // look busy during startup, but being busy doesn't make an already open bar close.
+    composerStandIn: '#pending-home-input',
+    composerLoading: '#composer-submit-button[aria-busy="true"], #composer-submit-button [class*="animate-spin"]',
     // Where the bar goes when no box can be found.
     composer: [
       { selector: '[data-composer-placement]', mode: 'after' },
@@ -95,7 +95,6 @@
     modeSeen: false,       // a mode has been read since the page loaded
     barTarget: null,
     barOpen: false,        // shown, or opening
-    barSpot: null,         // { node, inside } where the bar was last put
   };
 
   // ---------- Extension plumbing ----------
@@ -479,7 +478,8 @@
   // ---------- Mounting ----------
 
   function isVisible(node) {
-    return !node.closest(SELECTORS.inactive) && node.getClientRects().length > 0;
+    return !node.closest(SELECTORS.inactive) && node.getClientRects().length > 0
+      && getComputedStyle(node).visibility === 'visible';
   }
 
   // The main composer is the last visible one: an inline "edit message" composer sits above it.
@@ -546,7 +546,7 @@
   }
 
   function isSidebarVisible(node) {
-    return !node.closest(SELECTORS.sidebarInactive) && isVisible(node) && getComputedStyle(node).visibility === 'visible';
+    return !node.closest(SELECTORS.sidebarInactive) && isVisible(node);
   }
 
   function findSidebarAnchor() {
@@ -577,8 +577,11 @@
   // How long .cgut-bar's transition runs. Not a delay: the clip that hides the content while the
   // row grows comes off once the bar has finished opening, so this has to match tracker.css.
   const BAR_ANIM_MS = 260;
+  const BAR_HANDOFF_MS = 2000;
 
   let barTimer = null;
+  let barHandoffTimer = null;
+  let barRect = null;
 
   function setBarOpen(open) {
     const el = bar.root;
@@ -600,11 +603,42 @@
   function dropBar() {
     clearTimeout(barTimer);
     bar.root.remove();
+    endBarHandoff();
     bar.root.hidden = true;
     bar.root.classList.add('cgut-bar-closed');
     bar.root.classList.remove('cgut-bar-moving');
     state.barOpen = false;
-    state.barSpot = null;
+    barRect = null;
+  }
+
+  // A send can remove the old box before the replacement exists. Keep the open bar at its
+  // last position during that gap. If the page no longer has a composer, let the bar go.
+  function holdBar() {
+    if (!state.barOpen) {
+      dropBar();
+      return false;
+    }
+    if (barHandoffTimer === null) barHandoffTimer = setTimeout(dropBar, BAR_HANDOFF_MS);
+    const el = bar.root;
+    if (barRect && (!el.isConnected || !isVisible(el))) {
+      el.style.left = `${barRect.left}px`;
+      el.style.bottom = `${window.innerHeight - barRect.bottom}px`;
+      el.style.width = `${barRect.width}px`;
+      el.classList.add('cgut-bar-handoff');
+      document.body.append(el);
+    }
+    return true;
+  }
+
+  function endBarHandoff() {
+    if (barHandoffTimer === null) return;
+    clearTimeout(barHandoffTimer);
+    barHandoffTimer = null;
+    const el = bar.root;
+    el.classList.remove('cgut-bar-handoff');
+    el.style.left = '';
+    el.style.bottom = '';
+    el.style.width = '';
   }
 
   // In a grid the bar would take the first free cell, which can be an empty row at the top of the
@@ -620,15 +654,15 @@
   function placeBar(node, inside) {
     const el = bar.root;
     const placed = inside ? el.parentElement === node && node.lastElementChild === el : node.nextElementSibling === el;
+    if (!placed || !state.barOpen) {
+      // Read a replacement grid before inserting the bar, whose old row can add implicit rows.
+      const grid = inside && getComputedStyle(node).display.includes('grid');
+      el.style.gridRowStart = grid ? String(gridRowAfterLast(node)) : '';
+    }
     if (!placed) {
       if (inside) node.append(el);
       else node.after(el);
     }
-    if (!state.barOpen) {
-      const grid = inside && getComputedStyle(node).display.includes('grid');
-      el.style.gridRowStart = grid ? String(gridRowAfterLast(node)) : '';
-    }
-    state.barSpot = { node, inside };
     if (node !== state.barTarget) {
       state.barTarget = node;
       log(`Composer bar placed ${inside ? 'inside' : 'after'} ${describeNode(node)}`);
@@ -637,32 +671,28 @@
 
   function mountBar(input) {
     const target = findComposer(input);
-    if (!target) {
-      dropBar();
-      return false;
-    }
-    const { node, mode } = target;
-    const inside = mode === 'inside' && !isRowFlex(node);
-    const root = input?.closest(SELECTORS.composerPlacement) || node.closest(SELECTORS.composerRoot) || node;
-    if (root.matches(SELECTORS.composerLoading) || root.querySelector(SELECTORS.composerLoading)) {
-      dropBar();
-      return true;
-    }
-
     if (!barWanted()) {
-      setBarOpen(false);
+      if (!target || barHandoffTimer !== null) dropBar();
+      else setBarOpen(false);
+      return !!target;
+    }
+    if (!target) return holdBar();
+
+    const { node, mode } = target;
+    const root = input?.closest(SELECTORS.composerPlacement) || node.closest(SELECTORS.composerRoot) || node;
+    const standIn = input ? input.matches(SELECTORS.composerStandIn) : root.querySelector(SELECTORS.composerStandIn);
+    if (standIn) {
+      if (state.barOpen) holdBar();
       return true;
     }
-    const spot = state.barSpot;
-    if (state.barOpen && bar.root.isConnected && spot?.node === node && spot.inside === inside) {
-      placeBar(node, inside); // the page may have added something after it
-      return true;
-    }
-    // The box was replaced or changed layout under the bar: take it out and open it again in the
-    // new spot.
-    if (state.barOpen) dropBar();
+    if (!state.barTarget && root.querySelector(SELECTORS.composerLoading)) return true;
+
+    endBarHandoff();
+    const inside = mode === 'inside' && !isRowFlex(node);
     placeBar(node, inside);
     setBarOpen(true);
+    const rect = bar.root.getBoundingClientRect();
+    if (rect.width) barRect = rect;
     return true;
   }
 
@@ -705,7 +735,8 @@
     if (['chat', 'work', 'codex'].includes(surfaceParam)) return surfaceParam;
     if (/^\/codex(?:\/|$)/.test(location.pathname)) return 'codex';
     if (input?.closest(SELECTORS.chatComposer)) return 'chat';
-    const placeholder = input ? placeholderOf(input).replace(/\u200b/g, '').trim() : '';
+    const placeholder = input && !input.matches(SELECTORS.composerStandIn)
+      ? placeholderOf(input).replace(/\u200b/g, '').trim() : '';
     if (/\bcodex\b/i.test(placeholder)) return 'codex';
     if (/^do anything[.!?…]*$/i.test(placeholder)) return 'codex';
     if (/\bwork\b/i.test(placeholder)) return 'work';
@@ -793,9 +824,17 @@
   }
 
   function onMountMutations(records) {
-    // React can hide a retained sidebar with inline display:none. Ignore style and class changes
-    // elsewhere, including the composer's animation, unless they could hide a sidebar anchor.
-    if (records.some(({ attributeName, target }) =>
+    // If React removes or hides the box inside an animation frame, restore the bar before paint.
+    const el = bar.root;
+    if (state.barOpen && (!el.isConnected || (
+      records.some(({ attributeName, target }) => attributeName && target !== el && target.contains(el))
+      && !isVisible(el)
+    ))) {
+      ensureMounted();
+      return;
+    }
+    // Styles can reveal a replacement composer or hide a retained sidebar.
+    if (barHandoffTimer !== null || records.some(({ attributeName, target }) =>
       (attributeName !== 'class' && attributeName !== 'style') ||
       target.matches(SIDEBAR_ANCHORS) || target.querySelector(SIDEBAR_ANCHORS))) queueMount();
   }
@@ -809,7 +848,7 @@
     observer?.disconnect();
     clearInterval(tickTimer);
     clearTimeout(state.pollTimer);
-    bar.root.remove();
+    dropBar();
     sidebar.root.remove();
     document.documentElement.classList.remove('cgut-hide-usage-popup', 'cgut-hide-usage-limit-banner');
   }
