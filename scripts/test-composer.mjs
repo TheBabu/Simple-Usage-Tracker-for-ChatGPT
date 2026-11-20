@@ -8,7 +8,10 @@ const source = readFileSync(new URL('../content/tracker.js', import.meta.url), '
 function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1, chatComposer = false } = {}) {
   let now = 10000;
   const classes = new Set();
-  const node = () => ({ append() {}, addEventListener() {}, closest: () => null, getClientRects: () => [{}] });
+  const node = () => ({
+    append() {}, replaceChildren() {}, addEventListener() {}, setAttribute() {},
+    classList: { add() {} }, closest: () => null, getClientRects: () => [{}],
+  });
   const input = {
     ...node(), matches: () => true, tagName: 'TEXTAREA', placeholder,
     closest: (selector) => selector === '[data-chatgpt-composer]' && chatComposer ? {} : null,
@@ -21,7 +24,7 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
     el: node,
     createPct: () => ({ root: node() }),
     createProgress: () => ({ root: node() }),
-    UsagePanel: class { root = node(); },
+    UsagePanel: class { root = node(); resets = node(); resetList = node(); resetStatus = node(); },
   };
   const ctx = vm.createContext({
     CGUT: { ui },
