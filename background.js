@@ -1,7 +1,7 @@
 // Owns the shared state in chrome.storage.local: the latest usage, the last error, the per-account
-// monthly credit tally and a short debug log. Tabs do the fetching; this worker stores what they
-// report, and fetches itself only when the popup asks and no chatgpt.com tab can. After an update
-// it also opens the Release Notes page.
+// monthly credit tally, the shared cooldown and a short debug log. Tabs normally do the fetching.
+// The worker can fetch directly for the popup and after a reset. After an update it also opens
+// the Release Notes page.
 'use strict';
 
 importScripts('shared/usage.js', 'release-notes/versions.js');
@@ -66,19 +66,45 @@ function recordBalance(ledger, usage) {
 
 async function storeUsage(fetched) {
   const usage = CGUT.normalizeUsage(fetched.raw, fetched.fetchedAt, fetched.accountId, fetched.resetCredits);
-  const { usage: previous, creditLedger = {} } = await chrome.storage.local.get(['usage', 'creditLedger']);
+  const { usage: previous, creditLedger = {}, usageBackoff } = await chrome.storage.local.get(['usage', 'creditLedger', 'usageBackoff']);
 
   // Tabs can finish fetches out of order; an older answer must not replace a newer one.
   if (previous && previous.accountId === usage.accountId && previous.fetchedAt >= usage.fetchedAt) return;
 
   const spent = recordBalance(creditLedger, usage);
-  await chrome.storage.local.set({ usage, usageError: null, creditLedger });
+  const backoff = CGUT.nextUsageBackoff(usageBackoff, fetched.rateLimit, usage.fetchedAt);
+  await chrome.storage.local.set({
+    usage, usageError: null, creditLedger,
+    ...(backoff !== usageBackoff && { usageBackoff: backoff }),
+  });
+  if (fetched.rateLimit) await appendLog(fetched.rateLimit.message);
   await appendLog(describeUsage(usage, spent));
 }
 
 async function storeError(error) {
-  await chrome.storage.local.set({ usageError: error });
+  const updates = { usageError: error };
+  if (error.status === 429) {
+    const { usageBackoff } = await chrome.storage.local.get('usageBackoff');
+    updates.usageBackoff = CGUT.nextUsageBackoff(usageBackoff, error);
+  }
+  await chrome.storage.local.set(updates);
   await appendLog(`Update failed: ${error.message}`);
+}
+
+async function fetchInBackground(options) {
+  const { usage, usageBackoff } = await chrome.storage.local.get(['usage', 'usageBackoff']);
+  if (Date.now() < CGUT.usageRetryAt(usageBackoff, usage?.fetchedAt)) {
+    return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
+  }
+  try {
+    const fetched = await CGUT.fetchUsage(options);
+    await serialized(() => storeUsage(fetched));
+    return { ok: true };
+  } catch (e) {
+    const error = CGUT.errorRecord(e);
+    await serialized(() => storeError(error));
+    return { ok: false, error: error.message };
+  }
 }
 
 // Prefers an open chatgpt.com tab, which fetches exactly as the page itself would. With none
@@ -96,15 +122,7 @@ async function refreshNow() {
     }
   }
 
-  try {
-    const fetched = await CGUT.fetchUsage();
-    await serialized(() => storeUsage(fetched));
-    return { ok: true, via: 'background' };
-  } catch (e) {
-    const error = CGUT.errorRecord(e);
-    await serialized(() => storeError(error));
-    return { ok: false, error: error.message, via: 'background' };
-  }
+  return { ...await fetchInBackground(), via: 'background' };
 }
 
 async function useReset(message) {
@@ -129,12 +147,7 @@ async function useReset(message) {
   if (!shouldRefresh) return result;
   // Fetch this account directly: a tab may still have a pre-reset request in flight or skip a
   // forced refresh because it polled recently.
-  try {
-    const fetched = await CGUT.fetchUsage({ accountHint: message.accountId });
-    await serialized(() => storeUsage(fetched));
-  } catch (e) {
-    await serialized(() => storeError(CGUT.errorRecord(e)));
-  }
+  await fetchInBackground({ accountHint: message.accountId });
   return result;
 }
 

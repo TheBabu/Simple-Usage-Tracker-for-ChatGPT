@@ -7,10 +7,10 @@
   const CGUT = globalThis.CGUT;
   const { ui } = CGUT;
 
-  const POLL_VISIBLE_MS = 60 * 1000;
+  const POLL_VISIBLE_MS = 10 * 1000;
   const POLL_HIDDEN_MS = 5 * 60 * 1000;
-  const POLL_JITTER_MS = 5 * 1000;          // spreads tabs out so one fetch serves them all
-  const FRESH_ON_OPEN_MS = 15 * 1000;       // page loads and tab switches refetch anything older
+  const POLL_SIGNED_OUT_MS = 60 * 1000;
+  const MAX_TIMEOUT_MS = 2 ** 31 - 1;
   const FORCED_MIN_GAP_MS = 2 * 1000;
   const AFTER_REPLY_DELAYS_MS = [2500, 12000]; // credit charges can land a few seconds late
   const SPEND_SETTLE_MS = 20 * 1000;
@@ -77,6 +77,7 @@
   const state = {
     usage: null,
     error: null,
+    backoff: null,
     ledger: {},
     collapsed: false,
     resetsCollapsed: false,
@@ -147,8 +148,7 @@
 
   // Stored usage is shared by every tab; ignore it when it belongs to a different workspace than
   // the one this tab is showing.
-  function currentUsage() {
-    const usage = state.usage;
+  function currentUsage(usage = state.usage) {
     const account = pageAccountId();
     if (!usage || !account || usage.accountId === 'default') return usage;
     return usage.accountId === account ? usage : null;
@@ -161,33 +161,42 @@
   // ---------- Fetching and scheduling ----------
 
   function pollInterval() {
-    return document.hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS;
+    if (document.hidden) return POLL_HIDDEN_MS;
+    if (state.error?.code === 'signed-out') return POLL_SIGNED_OUT_MS;
+    return POLL_VISIBLE_MS;
   }
 
   function scheduleNext() {
     clearTimeout(state.pollTimer);
     if (!alive()) return;
     const last = Math.max(currentUsage()?.fetchedAt || 0, state.lastAttemptAt);
-    const due = last + pollInterval() + Math.random() * POLL_JITTER_MS;
-    state.pollTimer = setTimeout(() => refresh(), Math.max(1000, due - Date.now()));
+    const retryAt = CGUT.usageRetryAt(state.backoff, state.usage?.fetchedAt);
+    const due = Math.max(last + pollInterval(), retryAt);
+    state.pollTimer = setTimeout(() => refresh(), Math.min(MAX_TIMEOUT_MS, Math.max(1000, due - Date.now())));
   }
 
   // Unforced refreshes skip the request when the shared data is younger than `maxAge`: another tab
   // fetched recently, and every tab sees that result through storage anyway.
-  function refresh({ force = false, maxAge = pollInterval() - POLL_JITTER_MS } = {}) {
+  function refresh({ force = false, maxAge = pollInterval() } = {}) {
     if (state.inFlight) return state.inFlight;
     if (!alive()) return Promise.resolve({ ok: false, error: 'Extension was reloaded' });
 
-    const now = Date.now();
-    if (force && now - state.lastAttemptAt < FORCED_MIN_GAP_MS) return Promise.resolve({ ok: true, skipped: true });
-    const usage = currentUsage();
-    if (!force && usage && now - usage.fetchedAt < maxAge) {
-      scheduleNext();
-      return Promise.resolve({ ok: true, skipped: true });
-    }
+    // Only one tab fetches at a time. Recheck storage while holding the lock so a pending
+    // storage event can't let a second tab fetch again or miss a cooldown.
+    state.inFlight = navigator.locks.request('cgut:usage-refresh', { ifAvailable: true }, async (lock) => {
+      if (!lock) return { ok: true, skipped: true };
+      const { usage = null, usageBackoff = null } = await chrome.storage.local.get(['usage', 'usageBackoff']);
+      const now = Date.now();
+      if (now < CGUT.usageRetryAt(usageBackoff, usage?.fetchedAt)) {
+        return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
+      }
+      const fetchedAt = currentUsage(usage)?.fetchedAt || 0;
+      const last = Math.max(fetchedAt, state.lastAttemptAt);
+      if (force ? now - last < FORCED_MIN_GAP_MS : now - fetchedAt < maxAge) {
+        return { ok: true, skipped: true };
+      }
 
-    state.lastAttemptAt = now;
-    state.inFlight = (async () => {
+      state.lastAttemptAt = now;
       try {
         const fetched = await CGUT.fetchUsage({ base: location.origin, accountHint: pageAccountId(), readBootstrap });
         await send({ type: 'cgut:store', fetched });
@@ -196,11 +205,11 @@
         const error = CGUT.errorRecord(e);
         await send({ type: 'cgut:error', error });
         return { ok: false, error: error.message };
-      } finally {
-        state.inFlight = null;
-        scheduleNext();
       }
-    })();
+    }).catch((e) => ({ ok: false, error: e.message })).finally(() => {
+      state.inFlight = null;
+      scheduleNext();
+    });
     return state.inFlight;
   }
 
@@ -863,11 +872,12 @@
 
   async function init() {
     const stored = await chrome.storage.local.get([
-      'usage', 'usageError', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed',
+      'usage', 'usageError', 'usageBackoff', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed',
       'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay',
     ]);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
+    state.backoff = stored.usageBackoff || null;
     state.ledger = stored.creditLedger || {};
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
@@ -911,11 +921,12 @@
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
         render();
       }
-      if (!changes.usage && !changes.usageError && !changes.creditLedger) return;
+      if (changes.usageBackoff) state.backoff = changes.usageBackoff.newValue || null;
       if (changes.usage) state.usage = changes.usage.newValue || null;
       if (changes.usageError) state.error = changes.usageError.newValue || null;
+      if (changes.usage || changes.usageError || changes.usageBackoff) scheduleNext();
+      if (!changes.usage && !changes.usageError && !changes.creditLedger) return;
       if (changes.creditLedger) state.ledger = changes.creditLedger.newValue || {};
-      if (changes.usage) scheduleNext();
       render();
       queueMount(); // signing out hides the bar
     });
@@ -930,11 +941,11 @@
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return scheduleNext();
-      refresh({ maxAge: FRESH_ON_OPEN_MS });
+      refresh({ maxAge: POLL_VISIBLE_MS });
       queueMount();
     });
 
-    refresh({ maxAge: FRESH_ON_OPEN_MS });
+    refresh({ maxAge: POLL_VISIBLE_MS });
   }
 
   init().catch((e) => log(`Tracker failed to start: ${e.message}`));
