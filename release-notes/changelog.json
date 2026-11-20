@@ -5,7 +5,8 @@
     "title": "Support the updated ChatGPT layout",
     "changes": [
       "The message-box usage bar, sidebar Usage section and native usage-notice settings work with the updated ChatGPT layout.",
-      "Use \"Hide tracker in the sidebar\" under Options to hide the tracker across ChatGPT tabs."
+      "Use \"Hide tracker in the sidebar\" under Options to hide the tracker across ChatGPT tabs.",
+      "Usage and Available Resets are now separate sidebar dropdowns. Each remembers whether it is open."
     ]
   },
   {
