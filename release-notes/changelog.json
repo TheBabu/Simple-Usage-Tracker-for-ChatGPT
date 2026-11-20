@@ -6,7 +6,7 @@
     "changes": [
       "The message-box usage bar, sidebar Usage section and native usage-notice settings work with the updated ChatGPT layout.",
       "Usage and Available Resets are now separate sidebar dropdowns. Each remembers whether it is open, and Available Resets appears when you have a reset to use.",
-      "Usage stays available in the sidebar when switching between Home, Spaces, Scheduled, Plugins, and other destinations.",
+      "Usage stays below the main sidebar header when switching between Home, Space, Scheduled, Customize, and other destinations.",
       "The usage bar stays visible when you send a message, even if ChatGPT briefly replaces the message box.",
       "Usage refreshes every 10 seconds while your ChatGPT tab is visible. If ChatGPT asks for fewer requests, updates slow to 30 seconds, then 60 seconds, or wait longer if instructed."
     ]

@@ -51,6 +51,8 @@
     surfaceToggle: 'button[aria-label="Select chat surface"]',
     sidebarShell: '[data-sidebar-navigation-root], [data-slate-sidebar-content]',
     sidebarInactive: '[data-sidebar-collapsed], [data-app-navigation-rail]',
+    sidebarHeader: '[class~="pb-(--sidebar-scroll-header-spacing)"]',
+    sidebarBody: '.overflow-y-auto',
     sidebarScroll: '[data-app-action-sidebar-scroll]',
     legacySidebar: [
       { selector: '#history', mode: 'before' },
@@ -69,7 +71,8 @@
   };
 
   const SIDEBAR_ANCHORS = [
-    SELECTORS.sidebarShell, SELECTORS.sidebarScroll, ...SELECTORS.legacySidebar.map(({ selector }) => selector),
+    SELECTORS.sidebarShell, SELECTORS.sidebarHeader, SELECTORS.sidebarScroll,
+    ...SELECTORS.legacySidebar.map(({ selector }) => selector),
   ].join(', ');
 
   const startedAt = Date.now();
@@ -564,9 +567,17 @@
     if (shells.length && !shell) return null;
 
     const scroll = Array.from((shell || document).querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
+    const header = shell && Array.from(shell.querySelectorAll(SELECTORS.sidebarHeader)).findLast(isSidebarVisible);
+    if (header) {
+      const next = header.nextElementSibling;
+      const body = next === sidebar.root ? next.nextElementSibling : next;
+      // Home wraps its chat scroller. Other destinations share a header followed by a scroll area.
+      if (scroll && body?.contains(scroll)) return { node: scroll, mode: 'afterFirstChild' };
+      if (body?.matches(SELECTORS.sidebarBody) && isSidebarVisible(body)) return { node: body, mode: 'prepend' };
+      return { node: header, mode: 'after' };
+    }
     if (scroll) return { node: scroll, mode: 'afterFirstChild' };
-    // Destination views can replace the chat scroller or keep it mounted and hidden. Put Usage
-    // in the sidebar shell when the current view has no scroller of its own.
+    // Some sidebar views have neither a shared header nor a chat scroller.
     if (shell) return { node: shell, mode: 'prepend' };
 
     for (const { selector, mode } of SELECTORS.legacySidebar) {
@@ -794,6 +805,8 @@
       }
     } else if (mode === 'before') {
       if (node.previousElementSibling !== el) node.before(el);
+    } else if (mode === 'after') {
+      if (node.nextElementSibling !== el) node.after(el);
     } else if (mode === 'prepend') {
       if (node.firstElementChild !== el) node.prepend(el);
     } else if (node.lastElementChild !== el) {

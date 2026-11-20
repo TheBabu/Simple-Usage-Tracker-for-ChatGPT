@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
 const shellMarker = '[data-sidebar-navigation-root]';
 const scrollMarker = '[data-app-action-sidebar-scroll]';
+const headerMarker = '[class~="pb-(--sidebar-scroll-header-spacing)"]';
 
 function element(...selectors) {
   return {
@@ -23,6 +24,12 @@ function element(...selectors) {
     append(...children) {
       for (const child of children) child.parent = this;
       this.children.push(...children);
+    },
+    get nextElementSibling() {
+      return this.parent?.children[this.parent.children.indexOf(this) + 1];
+    },
+    contains(node) {
+      return node === this || Boolean(node.parent && this.contains(node.parent));
     },
     matches(selector) {
       return selector.split(', ').some((value) => this.selectors.includes(value));
@@ -85,6 +92,41 @@ test('uses the sidebar shell while a destination has no chat scroller', () => {
   assert.equal(findSidebarAnchor().node, scroll);
 });
 
+test('uses the scroll area below the active sidebar header', () => {
+  const shell = element(shellMarker);
+  const home = element();
+  const homeBody = element();
+  const chatScroll = element(scrollMarker);
+  homeBody.append(chatScroll);
+  home.append(element(headerMarker), homeBody);
+  const destinations = [element(), element(), element()];
+  for (const view of destinations) {
+    view.hasLayout = false;
+    view.append(element(headerMarker), element('.overflow-y-auto'));
+  }
+  shell.append(home, ...destinations);
+  const { findSidebarAnchor } = sidebar(shell);
+
+  assert.equal(findSidebarAnchor().node, chatScroll);
+  assert.equal(findSidebarAnchor().mode, 'afterFirstChild');
+  home.hasLayout = false;
+  for (const view of destinations) {
+    view.hasLayout = true;
+    assert.equal(findSidebarAnchor().node, view.children[1]);
+    assert.equal(findSidebarAnchor().mode, 'prepend');
+    view.hasLayout = false;
+  }
+});
+
+test('places Usage after a visible header while the destination is loading', () => {
+  const shell = element(shellMarker);
+  const header = element(headerMarker);
+  shell.append(header, element());
+  const { findSidebarAnchor } = sidebar(shell);
+  assert.equal(findSidebarAnchor().node, header);
+  assert.equal(findSidebarAnchor().mode, 'after');
+});
+
 test('chooses the active shell and skips collapsed sidebars and the icon rail', () => {
   const active = element('[data-slate-sidebar-content]');
   const inactive = element(shellMarker, '[data-app-shell-active-page="false"]');
@@ -117,7 +159,9 @@ test('queues a remount for sidebar visibility changes and ignores unrelated anim
   const retained = element();
   retained.append(element(scrollMarker));
   shell.append(retained);
-  for (const [target, attributeName] of [[retained, 'style'], [shell, 'class']]) {
+  const header = element(headerMarker);
+  retained.append(header);
+  for (const [target, attributeName] of [[retained, 'style'], [shell, 'class'], [header, 'style']]) {
     const { onMountMutations, frames } = sidebar(shell);
     onMountMutations([{ target: element(), attributeName: 'style' }]);
     assert.equal(frames.length, 0);
