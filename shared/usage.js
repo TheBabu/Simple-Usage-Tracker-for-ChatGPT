@@ -12,6 +12,9 @@
   const DAY = 24 * HOUR;
 
   const WARN_PCT = 90;
+  const USAGE_REQUEST_TIMEOUT_MS = 15 * 1000;
+  const USAGE_BACKOFF_MS = [30 * 1000, 60 * 1000];
+  const USAGE_BACKOFF_RECOVERY_MS = 5 * 60 * 1000;
 
   // ---------- Fetching ----------
 
@@ -25,7 +28,33 @@
 
   // The plain-object form errors are stored and messaged in.
   function errorRecord(e) {
-    return { at: Date.now(), message: e?.message || String(e), code: e?.code || 'unknown', status: e?.status ?? null };
+    return { at: Date.now(), message: e?.message || String(e), code: e?.code || 'unknown', status: e?.status ?? null, retryAt: e?.retryAt ?? null };
+  }
+
+  function rateLimitError(response) {
+    const error = new UsageError('ChatGPT is rate limiting usage updates (HTTP 429)', 'http', 429);
+    const value = response.headers.get('Retry-After')?.trim();
+    const retryAt = /^\d+$/.test(value) ? Date.now() + Number(value) * 1000 : Date.parse(value);
+    error.retryAt = Number.isFinite(retryAt) ? retryAt : null;
+    return error;
+  }
+
+  function nextUsageBackoff(previous, error, fetchedAt) {
+    if (error?.status === 429) {
+      const [first, next] = USAGE_BACKOFF_MS;
+      // Overlapping failures during the same cooldown should not count as separate retries.
+      const interval = !previous ? first : error.at < previous.retryAt ? previous.interval : next;
+      const at = Math.max(previous?.at || 0, error.at);
+      const retryAt = Math.max(previous?.retryAt || 0, at + interval, error.retryAt || 0);
+      return { at, interval, retryAt };
+    }
+    // A successful probe alone doesn't mean the endpoint can sustain the faster cadence.
+    if (previous && fetchedAt >= previous.retryAt && fetchedAt - previous.at >= USAGE_BACKOFF_RECOVERY_MS) return null;
+    return previous;
+  }
+
+  function usageRetryAt(backoff, fetchedAt = 0) {
+    return backoff ? Math.max(backoff.retryAt, fetchedAt + backoff.interval) : 0;
   }
 
   let cachedAuth = null; // { token, accountId, hint, expiresAt }
@@ -67,7 +96,7 @@
   const BOOTSTRAP_RE = /<script[^>]*\bid="client-bootstrap"[^>]*>([\s\S]*?)<\/script>/;
 
   async function readBootstrapFromHtml(base) {
-    const res = await fetch(base + '/', { credentials: 'include', cache: 'no-store' });
+    const res = await fetch(base + '/', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
     if (!res.ok) return null;
     return parseBootstrap((await res.text()).match(BOOTSTRAP_RE)?.[1]);
   }
@@ -78,12 +107,14 @@
   async function loadSession(base, readBootstrap) {
     let networkError = null;
     try {
-      const res = await fetch(base + SESSION_PATH, { credentials: 'include', cache: 'no-store' });
+      const res = await fetch(base + SESSION_PATH, { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
+      if (res.status === 429) throw rateLimitError(res);
       if (res.ok) {
         const session = await res.json().catch(() => null);
         if (session?.accessToken) return session;
       }
     } catch (e) {
+      if (e.status === 429) throw e;
       networkError = e;
     }
 
@@ -107,8 +138,8 @@
     return cachedAuth;
   }
 
-  // Returns { raw, accountId, fetchedAt }. `base` is the page origin from the content script, or
-  // chatgpt.com from the background worker.
+  // `base` is the page origin from the content script, or chatgpt.com from the background worker.
+  // A rate limit from the reset details request is returned alongside valid usage.
   async function fetchUsage({ base = ORIGIN, accountHint = null, readBootstrap = null } = {}) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const auth = await getAuth(base, accountHint, readBootstrap);
@@ -117,7 +148,7 @@
 
       let res;
       try {
-        res = await fetch(base + USAGE_PATH, { credentials: 'include', cache: 'no-store', headers });
+        res = await fetch(base + USAGE_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
       } catch (e) {
         throw new UsageError(`Could not reach ChatGPT (${e.message})`, 'network');
       }
@@ -127,6 +158,7 @@
         cachedAuth = null;
         continue;
       }
+      if (res.status === 429) throw rateLimitError(res);
       if (!res.ok) throw new UsageError(`Usage request failed (HTTP ${res.status})`, 'http', res.status);
 
       let raw;
@@ -137,13 +169,15 @@
       }
       // An unavailable reset endpoint must not hide ordinary usage or leave old resets actionable.
       let resetCredits = null;
+      let rateLimit = null;
       if (raw?.rate_limit_reset_credits?.available_count !== 0) {
         try {
           const resets = await fetch(base + RESET_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(10000) });
           if (resets.ok) resetCredits = await resets.json();
+          if (resets.status === 429) rateLimit = errorRecord(rateLimitError(resets));
         } catch { /* Hide resets until their availability can be checked again. */ }
       }
-      return { raw, resetCredits, accountId: auth.accountId, fetchedAt: Date.now() };
+      return { raw, resetCredits, rateLimit, accountId: auth.accountId, fetchedAt: Date.now() };
     }
     throw new UsageError('Usage request was rejected', 'http', 401);
   }
@@ -335,6 +369,8 @@
     WARN_PCT,
     UsageError,
     errorRecord,
+    nextUsageBackoff,
+    usageRetryAt,
     parseBootstrap,
     fetchUsage,
     consumeReset,
