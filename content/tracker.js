@@ -49,10 +49,10 @@
     ],
     modeToggle: '[role="group"][aria-label="Composer mode"]',
     surfaceToggle: 'button[aria-label="Select chat surface"]',
+    activeRailDestination: '[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]',
+    usageRailDestinations: '[data-sidebar-destination="builtin:home"], [data-sidebar-destination="builtin:codex"]',
     sidebarShell: '[data-sidebar-navigation-root], [data-slate-sidebar-content]',
     sidebarInactive: '[data-sidebar-collapsed], [data-app-navigation-rail]',
-    sidebarHeader: '[class~="pb-(--sidebar-scroll-header-spacing)"]',
-    sidebarBody: '.overflow-y-auto',
     sidebarScroll: '[data-app-action-sidebar-scroll]',
     legacySidebar: [
       { selector: '#history', mode: 'before' },
@@ -71,7 +71,7 @@
   };
 
   const SIDEBAR_ANCHORS = [
-    SELECTORS.sidebarShell, SELECTORS.sidebarHeader, SELECTORS.sidebarScroll,
+    SELECTORS.activeRailDestination, SELECTORS.sidebarShell, SELECTORS.sidebarScroll,
     ...SELECTORS.legacySidebar.map(({ selector }) => selector),
   ].join(', ');
 
@@ -93,7 +93,7 @@
     streaming: false,      // the stop button is showing
     pending: null,         // { startBalance, endedAt } for the reply in progress
     lastSpend: null,       // credits the last reply cost, when it cost any
-    mountWarned: { bar: false, sidebar: false },
+    barMountWarned: false,
     mode: null,            // 'work' | 'codex' | 'chat' | null (not known yet) for the current page
     modePage: null,
     modeSeen: false,       // a mode has been read since the page loaded
@@ -561,29 +561,25 @@
     return !node.closest(SELECTORS.sidebarInactive) && isVisible(node);
   }
 
+  function isUsageDestination() {
+    const destination = lastVisible(SELECTORS.activeRailDestination);
+    if (destination) return destination.matches(SELECTORS.usageRailDestinations);
+    // A direct link can load the feature view before the app has marked the active rail tab.
+    return !/^\/(?:space|spaces|scheduled|plugins|skills)(?:\/|$)/.test(location.pathname);
+  }
+
   function findSidebarAnchor() {
     const shells = Array.from(document.querySelectorAll(SELECTORS.sidebarShell));
     const shell = shells.findLast(isSidebarVisible);
     if (shells.length && !shell) return null;
 
-    const scroll = Array.from((shell || document).querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
-    const header = shell && Array.from(shell.querySelectorAll(SELECTORS.sidebarHeader)).findLast(isSidebarVisible);
-    if (header) {
-      const next = header.nextElementSibling;
-      const body = next === sidebar.root ? next.nextElementSibling : next;
-      // Home wraps its chat scroller. Other destinations share a header followed by a scroll area.
-      if (scroll && body?.contains(scroll)) return { node: scroll, mode: 'afterFirstChild' };
-      if (body?.matches(SELECTORS.sidebarBody) && isSidebarVisible(body)) {
-        return { node: body, mode: 'prepend', inDestinationBody: true };
-      }
-      return { node: header, mode: 'after' };
-    }
+    // Home and Codex share a conversations scroller. Other destinations can retain it offscreen.
+    const root = shell || document;
+    const scroll = Array.from(root.querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
     if (scroll) return { node: scroll, mode: 'afterFirstChild' };
-    // Some sidebar views have neither a shared header nor a chat scroller.
-    if (shell) return { node: shell, mode: 'prepend' };
 
     for (const { selector, mode } of SELECTORS.legacySidebar) {
-      const node = Array.from(document.querySelectorAll(selector)).findLast(isSidebarVisible);
+      const node = Array.from(root.querySelectorAll(selector)).findLast(isSidebarVisible);
       if (node) return { node, mode };
     }
     return null;
@@ -793,10 +789,9 @@
     const target = findSidebarAnchor();
     if (!target) {
       el.remove();
-      return false;
+      return;
     }
-    const { node, mode, inDestinationBody = false } = target;
-    el.classList.toggle('cgut-sidebar-in-destination', inDestinationBody);
+    const { node, mode } = target;
     if (mode === 'afterFirstChild') {
       const first = node.firstElementChild === el ? el.nextElementSibling : node.firstElementChild;
       if (!first) {
@@ -808,32 +803,30 @@
       }
     } else if (mode === 'before') {
       if (node.previousElementSibling !== el) node.before(el);
-    } else if (mode === 'after') {
-      if (node.nextElementSibling !== el) node.after(el);
-    } else if (mode === 'prepend') {
-      if (node.firstElementChild !== el) node.prepend(el);
     } else if (node.lastElementChild !== el) {
       node.append(el);
     }
-    return true;
   }
 
   function ensureMounted() {
     if (!alive()) return teardown();
+    markUsageNotices();
+    if (!isUsageDestination()) {
+      if (state.barOpen || bar.root.isConnected) dropBar();
+      sidebar.root.remove();
+      return;
+    }
     // The mode first, so the bar opens or closes in the same frame as a Chat/Work switch.
     const input = findComposerInput();
     updateMode(input);
-    markUsageNotices();
-    const mounted = { bar: mountBar(input), sidebar: mountSidebar() };
+    const barMounted = mountBar(input);
+    mountSidebar();
 
     updateStreaming(input);
 
-    if (Date.now() - startedAt < MOUNT_WARN_AFTER_MS) return;
-    for (const key of ['bar', 'sidebar']) {
-      if (!mounted[key] && !state.mountWarned[key]) {
-        state.mountWarned[key] = true;
-        log(`Couldn't find where to put the ${key === 'bar' ? 'composer bar' : 'sidebar section'}; ChatGPT's layout may have changed.`);
-      }
+    if (!barMounted && !state.barMountWarned && Date.now() - startedAt >= MOUNT_WARN_AFTER_MS) {
+      state.barMountWarned = true;
+      log("Couldn't find where to put the composer bar; ChatGPT's layout may have changed.");
     }
   }
 
@@ -912,9 +905,9 @@
       childList: true,
       subtree: true,
       attributeFilter: [
-        'aria-busy', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'class', 'placeholder',
+        'aria-busy', 'aria-current', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'class', 'placeholder',
         'data-app-action-sidebar-scroll', 'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder',
-        'data-sidebar-collapsed', 'data-sidebar-navigation-root', 'data-slate-sidebar-content', 'hidden', 'inert', 'style',
+        'data-sidebar-collapsed', 'data-sidebar-destination', 'data-sidebar-navigation-root', 'data-slate-sidebar-content', 'hidden', 'inert', 'style',
       ],
     });
     tickTimer = setInterval(tick, TICK_MS);

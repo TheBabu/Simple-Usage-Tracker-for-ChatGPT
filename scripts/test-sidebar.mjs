@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
 const shellMarker = '[data-sidebar-navigation-root]';
 const scrollMarker = '[data-app-action-sidebar-scroll]';
-const headerMarker = '[class~="pb-(--sidebar-scroll-header-spacing)"]';
+const activeRailDestination = '[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]';
 
 function element(...selectors) {
   return {
@@ -24,12 +24,6 @@ function element(...selectors) {
     append(...children) {
       for (const child of children) child.parent = this;
       this.children.push(...children);
-    },
-    get nextElementSibling() {
-      return this.parent?.children[this.parent.children.indexOf(this) + 1];
-    },
-    contains(node) {
-      return node === this || Boolean(node.parent && this.contains(node.parent));
     },
     matches(selector) {
       return selector.split(', ').some((value) => this.selectors.includes(value));
@@ -64,84 +58,71 @@ function sidebar(...pageChildren) {
   };
   const ctx = vm.createContext({
     CGUT: { ui }, document,
+    location: { pathname: '/' },
     getComputedStyle: (node) => ({ visibility: node.visibility }),
     requestAnimationFrame: (callback) => frames.push(callback),
   });
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.sidebar = { findSidebarAnchor, onMountMutations };'), ctx);
-  return { ...ctx.CGUT.sidebar, frames };
+    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations };'), ctx);
+  return { ...ctx.CGUT.sidebar, frames, location: ctx.location };
 }
 
-test('uses the sidebar shell while a destination has no chat scroller', () => {
+test('uses the active chat scroller and skips destinations that retain it offscreen', () => {
   const shell = element(shellMarker);
   const home = element('nav[aria-label="Chat history"]');
   const scroll = element(scrollMarker);
   home.append(scroll);
-  shell.append(home, element('nav[aria-label="Scheduled task folders"]'), element('nav[aria-label="Plugins"]'));
+  shell.append(home, element('nav[aria-label="Space"]'), element('nav[aria-label="Scheduled task folders"]'),
+    element('nav[aria-label="Customize"]'));
   const otherScroll = element(scrollMarker);
   const { findSidebarAnchor } = sidebar(shell, otherScroll, element('#history'));
 
   assert.equal(findSidebarAnchor().node, scroll);
+  assert.equal(findSidebarAnchor().mode, 'afterFirstChild');
   home.hasLayout = false;
-  assert.equal(findSidebarAnchor().node, shell);
-  assert.equal(findSidebarAnchor().mode, 'prepend');
+  assert.equal(findSidebarAnchor(), null);
   home.hasLayout = true;
   scroll.visibility = 'hidden';
-  assert.equal(findSidebarAnchor().node, shell);
+  assert.equal(findSidebarAnchor().node, home);
   scroll.visibility = 'visible';
   assert.equal(findSidebarAnchor().node, scroll);
 });
 
-test('uses the scroll area below the active sidebar header', () => {
-  const shell = element(shellMarker);
-  const home = element();
-  const homeBody = element();
-  const chatScroll = element(scrollMarker);
-  homeBody.append(chatScroll);
-  home.append(element(headerMarker), homeBody);
-  const destinations = [element(), element(), element()];
-  for (const view of destinations) {
-    view.hasLayout = false;
-    view.append(element(headerMarker), element('.overflow-y-auto'));
-  }
-  shell.append(home, ...destinations);
-  const { findSidebarAnchor } = sidebar(shell);
-
-  assert.equal(findSidebarAnchor().node, chatScroll);
-  assert.equal(findSidebarAnchor().mode, 'afterFirstChild');
-  assert.ok(!findSidebarAnchor().inDestinationBody);
-  home.hasLayout = false;
-  for (const view of destinations) {
-    view.hasLayout = true;
-    assert.equal(findSidebarAnchor().node, view.children[1]);
-    assert.equal(findSidebarAnchor().mode, 'prepend');
-    assert.equal(findSidebarAnchor().inDestinationBody, true);
-    view.hasLayout = false;
+test('only Home and Codex show usage when the active rail destination is marked', () => {
+  for (const name of ['home', 'codex', 'space', 'customize', 'automations', 'library', 'pull-requests']) {
+    const destination = element(activeRailDestination, `[data-sidebar-destination="builtin:${name}"]`);
+    const { isUsageDestination } = sidebar(destination);
+    assert.equal(isUsageDestination(), name === 'home' || name === 'codex', name);
   }
 });
 
-test('places Usage after a visible header while the destination is loading', () => {
-  const shell = element(shellMarker);
-  const header = element(headerMarker);
-  shell.append(header, element());
-  const { findSidebarAnchor } = sidebar(shell);
-  assert.equal(findSidebarAnchor().node, header);
-  assert.equal(findSidebarAnchor().mode, 'after');
+test('direct links to feature tabs hide usage while the rail is loading', () => {
+  const { isUsageDestination, location } = sidebar();
+  for (const pathname of ['/space', '/spaces/one', '/scheduled', '/plugins/one', '/skills']) {
+    location.pathname = pathname;
+    assert.equal(isUsageDestination(), false, pathname);
+  }
+  for (const pathname of ['/', '/c/one', '/codex/tasks/one']) {
+    location.pathname = pathname;
+    assert.equal(isUsageDestination(), true, pathname);
+  }
 });
 
 test('chooses the active shell and skips collapsed sidebars and the icon rail', () => {
   const active = element('[data-slate-sidebar-content]');
   const inactive = element(shellMarker, '[data-app-shell-active-page="false"]');
   const rail = element('[data-app-navigation-rail]');
+  const scroll = element(scrollMarker);
   rail.append(element(scrollMarker));
-  active.append(rail);
+  active.append(rail, scroll);
+  inactive.append(element(scrollMarker));
   const { findSidebarAnchor } = sidebar(active, inactive, element('#history'));
 
-  assert.equal(findSidebarAnchor().node, active);
+  assert.equal(findSidebarAnchor().node, scroll);
   active.selectors.push('[data-sidebar-collapsed]');
   assert.equal(findSidebarAnchor(), null);
   inactive.selectors.pop();
-  assert.equal(findSidebarAnchor().node, inactive);
+  assert.equal(findSidebarAnchor().node, inactive.children[0]);
 });
 
 test('keeps the legacy history and navigation fallbacks', () => {
@@ -161,10 +142,9 @@ test('queues a remount for sidebar visibility changes and ignores unrelated anim
   const retained = element();
   retained.append(element(scrollMarker));
   shell.append(retained);
-  const header = element(headerMarker);
-  retained.append(header);
-  for (const [target, attributeName] of [[retained, 'style'], [shell, 'class'], [header, 'style']]) {
-    const { onMountMutations, frames } = sidebar(shell);
+  const activeTab = element(activeRailDestination);
+  for (const [target, attributeName] of [[retained, 'style'], [shell, 'class'], [activeTab, 'aria-current']]) {
+    const { onMountMutations, frames } = sidebar(shell, activeTab);
     onMountMutations([{ target: element(), attributeName: 'style' }]);
     assert.equal(frames.length, 0);
     onMountMutations([{ target, attributeName }]);
