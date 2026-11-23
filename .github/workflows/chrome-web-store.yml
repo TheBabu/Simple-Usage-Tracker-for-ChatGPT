@@ -9,9 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Published GitHub release tag (for example, v1.2.3)
-        required: true
+        description: Published GitHub release tag, required when submitting
+        required: false
         type: string
+      status_only:
+        description: Show published and submitted versions
+        type: boolean
+        default: false
 
 jobs:
   submit:
@@ -26,18 +30,24 @@ jobs:
       cancel-in-progress: false
     env:
       TAG: ${{ inputs.tag }}
+      STATUS_ONLY: ${{ inputs.status_only }}
       CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
       CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
       CWS_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
     steps:
-      - name: Download the GitHub release ZIP
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Check Chrome Web Store configuration
         shell: bash
         run: |
           : "${CWS_PUBLISHER_ID:?Set CWS_PUBLISHER_ID as described in RELEASING.md}"
           : "${CWS_SERVICE_ACCOUNT:?Set CWS_SERVICE_ACCOUNT as described in RELEASING.md}"
           : "${CWS_WORKLOAD_IDENTITY_PROVIDER:?Set CWS_WORKLOAD_IDENTITY_PROVIDER as described in RELEASING.md}"
+
+      - name: Download the GitHub release ZIP
+        if: ${{ !inputs.status_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
           if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,3}$ ]]; then
             echo "Enter an extension version tag such as v1.2.3." >&2
             exit 1
@@ -61,11 +71,11 @@ jobs:
           workload_identity_provider: ${{ env.CWS_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.CWS_SERVICE_ACCOUNT }}
           token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_scopes: ${{ inputs.status_only && 'https://www.googleapis.com/auth/chromewebstore.readonly' || 'https://www.googleapis.com/auth/chromewebstore' }}
           create_credentials_file: false
           export_environment_variables: false
 
-      - name: Upload and submit for review
+      - name: Check review status or submit the release
         env:
           CWS_TOKEN: ${{ steps.auth.outputs.access_token }}
         shell: bash
@@ -86,6 +96,23 @@ jobs:
           }
 
           status=$(store_api "$api/v2/$item:fetchStatus")
+          if [[ "$STATUS_ONLY" == "true" ]]; then
+            report=$(jq '
+              def revision:
+                if . == null then null else {
+                  state,
+                  versions: ([.distributionChannels[]?.crxVersion] | unique)
+                } end;
+              {
+                published: (.publishedItemRevisionStatus | revision),
+                submitted: (.submittedItemRevisionStatus | revision)
+              }
+            ' <<< "$status")
+            printf '%s\n' "$report"
+            printf '%s\n' '```json' "$report" '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           if jq -e --arg version "${TAG#v}" '
             [.publishedItemRevisionStatus, (.submittedItemRevisionStatus |
               select(.state | IN("PENDING_REVIEW", "STAGED", "PUBLISHED", "PUBLISHED_TO_TESTERS")))]

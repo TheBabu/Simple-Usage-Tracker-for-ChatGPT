@@ -73,3 +73,6 @@ Once all three variables are set, new GitHub releases go to the existing Store i
 `jidllgipcneeonigpfaljejnmjodhkga`. For a release that was already created, run **Chrome Web Store**
 from the repository's **Actions** tab on `main` and enter its tag. If the upload succeeded and
 submission failed, check the draft version in the Developer Dashboard before retrying.
+To check the current published and submitted versions, run the same workflow with
+**Show published and submitted versions** checked and leave the tag blank. The run summary
+shows the Store API response for each revision.
