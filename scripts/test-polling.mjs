@@ -31,16 +31,18 @@ function setup(fetch) {
   });
   vm.runInContext(source, ctx);
   vm.runInContext(worker, ctx);
+  const sendMessage = (message) => new Promise((resolve) => receive(message, {}, resolve));
   return {
     ctx,
     storage,
     now: () => now,
     advance: (ms) => { now += ms; },
-    refresh: () => new Promise((resolve) => receive({ type: 'cgut:refresh' }, {}, resolve)),
+    sendMessage,
+    refresh: () => sendMessage({ type: 'cgut:refresh' }),
   };
 }
 
-test('refresh backs off to 30 and 60 seconds, preserves cached usage, and recovers after successful updates', async () => {
+test('refresh backs off to 30 and 60 seconds, preserves cached usage, and recovers on the first success', async () => {
   let remaining429s = 3;
   let calls = 0;
   const { storage, now, advance, refresh } = setup(async (url) => {
@@ -65,11 +67,11 @@ test('refresh backs off to 30 and 60 seconds, preserves cached usage, and recove
   assert.equal(storage.usageBackoff.retryAt, now() + 60000);
   advance(60000);
   assert.equal((await refresh()).ok, true);
-  assert.equal(storage.usageBackoff.interval, 60000);
-  await refresh();
+  assert.equal(storage.usageBackoff, null);
   assert.equal(calls, 5);
-  advance(240000);
+  advance(10000);
   assert.equal((await refresh()).ok, true);
+  assert.equal(calls, 6);
   assert.equal(storage.usageBackoff, null);
 });
 
@@ -89,12 +91,13 @@ test('honors Retry-After from usage and reset details, with a valid usage result
   assert.equal(storage.usageBackoff.retryAt, now() + 120000);
 });
 
-test('visible tabs share fresh usage and forced refreshes still wait during a cooldown', async () => {
+test('visible tabs start at 10 seconds, share fresh usage, and honor the cooldown', async () => {
   let calls = 0;
-  const { ctx, storage, now, advance, refresh } = setup(async (url) => {
+  let status = 200;
+  const { ctx, storage, now, advance, sendMessage } = setup(async (url) => {
     if (url.endsWith('/api/auth/session')) return json({ accessToken: 'test' });
     calls++;
-    return json({ ...raw, rate_limit_reset_credits: { available_count: 0 } });
+    return json({ ...raw, rate_limit_reset_credits: { available_count: 0 } }, { status });
   });
   const scheduled = [];
   ctx.document = { documentElement: { dataset: {} }, hidden: false };
@@ -103,16 +106,26 @@ test('visible tabs share fresh usage and forced refreshes still wait during a co
   ctx.setTimeout = (_callback, delay) => scheduled.push(delay);
   ctx.clearTimeout = () => {};
   ctx.chrome.runtime.id = 'test';
-  ctx.chrome.runtime.sendMessage = async () => {
-    throw new Error('A fresh cache or a cooldown should prevent the fetch');
-  };
-  await refresh();
   const scheduling = tracker.split('  // ---------- Replies and credit spend ----------')[0];
   vm.runInContext(scheduling + '  CGUT.tab = { state, refresh };\n})();', ctx);
   const tab = ctx.CGUT.tab;
-  tab.state.usage = storage.usage;
+  ctx.chrome.runtime.sendMessage = async (message) => {
+    await sendMessage(message);
+    tab.state.usage = storage.usage;
+    tab.state.error = storage.usageError;
+    tab.state.backoff = storage.usageBackoff;
+  };
+
+  assert.equal((await tab.refresh()).ok, true);
+  assert.equal(calls, 1);
+  assert.equal(scheduled.at(-1), 10000);
   assert.equal((await tab.refresh()).skipped, true);
   assert.equal(calls, 1);
+
+  advance(10000);
+  status = 503;
+  assert.equal((await tab.refresh()).ok, false);
+  assert.equal(calls, 2);
   assert.equal(scheduled.at(-1), 10000);
 
   const error = { status: 429, at: now(), retryAt: now() + 90000 };
@@ -120,6 +133,12 @@ test('visible tabs share fresh usage and forced refreshes still wait during a co
   tab.state.backoff = storage.usageBackoff;
   advance(10000);
   assert.equal((await tab.refresh({ force: true })).ok, false);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   assert.equal(scheduled.at(-1), 80000);
+
+  advance(80000);
+  status = 200;
+  assert.equal((await tab.refresh()).ok, true);
+  assert.equal(calls, 3);
+  assert.equal(scheduled.at(-1), 10000);
 });

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.3",
+    "date": "2026-11-23",
+    "title": "Resume faster usage updates",
+    "changes": [
+      "Usage returns to the 10-second refresh interval on visible ChatGPT tabs as soon as a rate-limited update succeeds."
+    ]
+  },
+  {
     "version": "1.2.2",
     "date": "2026-11-23",
     "title": "Remove an outdated usage option",

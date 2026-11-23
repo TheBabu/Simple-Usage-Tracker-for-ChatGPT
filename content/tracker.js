@@ -164,7 +164,7 @@
     clearTimeout(state.pollTimer);
     if (!alive()) return;
     const last = Math.max(currentUsage()?.fetchedAt || 0, state.lastAttemptAt);
-    const retryAt = CGUT.usageRetryAt(state.backoff, state.usage?.fetchedAt);
+    const retryAt = state.backoff?.retryAt ?? 0;
     const due = Math.max(last + pollInterval(), retryAt);
     state.pollTimer = setTimeout(() => refresh(), Math.min(MAX_TIMEOUT_MS, Math.max(1000, due - Date.now())));
   }
@@ -181,7 +181,7 @@
       if (!lock) return { ok: true, skipped: true };
       const { usage = null, usageBackoff = null } = await chrome.storage.local.get(['usage', 'usageBackoff']);
       const now = Date.now();
-      if (now < CGUT.usageRetryAt(usageBackoff, usage?.fetchedAt)) {
+      if (now < (usageBackoff?.retryAt ?? 0)) {
         return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
       }
       const fetchedAt = currentUsage(usage)?.fetchedAt || 0;

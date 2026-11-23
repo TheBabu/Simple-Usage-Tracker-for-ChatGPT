@@ -14,7 +14,6 @@
   const WARN_PCT = 90;
   const USAGE_REQUEST_TIMEOUT_MS = 15 * 1000;
   const USAGE_BACKOFF_MS = [30 * 1000, 60 * 1000];
-  const USAGE_BACKOFF_RECOVERY_MS = 5 * 60 * 1000;
 
   // ---------- Fetching ----------
 
@@ -48,13 +47,9 @@
       const retryAt = Math.max(previous?.retryAt || 0, at + interval, error.retryAt || 0);
       return { at, interval, retryAt };
     }
-    // A successful probe alone doesn't mean the endpoint can sustain the faster cadence.
-    if (previous && fetchedAt >= previous.retryAt && fetchedAt - previous.at >= USAGE_BACKOFF_RECOVERY_MS) return null;
+    // A successful retry ends the cooldown. Another request can finish while it's still active.
+    if (previous && fetchedAt >= previous.retryAt) return null;
     return previous;
-  }
-
-  function usageRetryAt(backoff, fetchedAt = 0) {
-    return backoff ? Math.max(backoff.retryAt, fetchedAt + backoff.interval) : 0;
   }
 
   let cachedAuth = null; // { token, accountId, hint, expiresAt }
@@ -370,7 +365,6 @@
     UsageError,
     errorRecord,
     nextUsageBackoff,
-    usageRetryAt,
     parseBootstrap,
     fetchUsage,
     consumeReset,

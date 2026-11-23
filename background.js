@@ -92,8 +92,8 @@ async function storeError(error) {
 }
 
 async function fetchInBackground(options) {
-  const { usage, usageBackoff } = await chrome.storage.local.get(['usage', 'usageBackoff']);
-  if (Date.now() < CGUT.usageRetryAt(usageBackoff, usage?.fetchedAt)) {
+  const { usageBackoff } = await chrome.storage.local.get('usageBackoff');
+  if (Date.now() < (usageBackoff?.retryAt ?? 0)) {
     return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
   }
   try {
