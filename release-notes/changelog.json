@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.2",
+    "date": "2026-11-23",
+    "title": "Remove an outdated usage option",
+    "changes": [
+      "Removed the \"Hide remaining usage popup\" option, which is no longer needed with ChatGPT's updated layout.",
+      "The extension's toolbar icon now shows the full name \"Simple Usage Tracker for ChatGPT\" when you hover over it."
+    ]
+  },
+  {
     "version": "1.2.1",
     "date": "2026-11-23",
     "title": "Support the updated ChatGPT layout",
