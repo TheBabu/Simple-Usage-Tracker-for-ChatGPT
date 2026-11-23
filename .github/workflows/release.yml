@@ -1,5 +1,6 @@
 # Builds the extension zip on every pull request, and publishes a GitHub release whenever a
-# push to main changes the version in manifest.json. See RELEASING.md.
+# push to main changes the version in manifest.json. Configured releases also go to the Chrome
+# Web Store. See RELEASING.md.
 name: Release
 
 on:
@@ -11,6 +12,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      new: ${{ steps.version.outputs.new }}
+      tag: ${{ steps.version.outputs.tag }}
     permissions:
       contents: write
     steps:
@@ -82,3 +86,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: gh release create "$TAG" dist/*.zip --title "$TAG" --target "$GITHUB_SHA" --notes-file notes.md
+
+  chrome-web-store:
+    needs: build
+    if: >-
+      needs.build.outputs.new == 'true' &&
+      vars.CWS_PUBLISHER_ID != '' &&
+      vars.CWS_SERVICE_ACCOUNT != '' &&
+      vars.CWS_WORKLOAD_IDENTITY_PROVIDER != ''
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/chrome-web-store.yml
+    with:
+      tag: ${{ needs.build.outputs.tag }}

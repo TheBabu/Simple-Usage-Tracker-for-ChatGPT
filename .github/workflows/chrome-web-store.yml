@@ -1,0 +1,132 @@
+name: Chrome Web Store
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub release tag (for example, v1.2.3)
+        required: true
+        type: string
+
+jobs:
+  submit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: chrome-web-store
+      cancel-in-progress: false
+    env:
+      TAG: ${{ inputs.tag }}
+      CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+      CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
+      CWS_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+    steps:
+      - name: Download the GitHub release ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          : "${CWS_PUBLISHER_ID:?Set CWS_PUBLISHER_ID as described in RELEASING.md}"
+          : "${CWS_SERVICE_ACCOUNT:?Set CWS_SERVICE_ACCOUNT as described in RELEASING.md}"
+          : "${CWS_WORKLOAD_IDENTITY_PROVIDER:?Set CWS_WORKLOAD_IDENTITY_PROVIDER as described in RELEASING.md}"
+          if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,3}$ ]]; then
+            echo "Enter an extension version tag such as v1.2.3." >&2
+            exit 1
+          fi
+          package="simple-tracker-for-chatgpt-$TAG.zip"
+          release=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease)
+          jq -e '.isDraft == false and .isPrerelease == false' <<< "$release" >/dev/null || {
+            echo "The GitHub release must be public and final." >&2
+            exit 1
+          }
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$package"
+          unzip -p "$package" manifest.json | jq -e --arg version "${TAG#v}" '.version == $version' >/dev/null || {
+            echo "The ZIP manifest version does not match the release tag." >&2
+            exit 1
+          }
+
+      - name: Authenticate to the Chrome Web Store
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ env.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Upload and submit for review
+        env:
+          CWS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        shell: bash
+        run: |
+          : "${CWS_TOKEN:?Chrome Web Store authentication returned no access token}"
+          publisher=$(printf '%s' "$CWS_PUBLISHER_ID" | jq -sRr @uri)
+          item="publishers/$publisher/items/jidllgipcneeonigpfaljejnmjodhkga"
+          api="https://chromewebstore.googleapis.com"
+
+          store_api() {
+            local response
+            if ! response=$(curl --silent --show-error --fail-with-body --max-time 60 \
+              --header "Authorization: Bearer $CWS_TOKEN" "$@"); then
+              printf '%s\n' "$response" >&2
+              return 1
+            fi
+            printf '%s\n' "$response"
+          }
+
+          status=$(store_api "$api/v2/$item:fetchStatus")
+          if jq -e --arg version "${TAG#v}" '
+            [.publishedItemRevisionStatus, (.submittedItemRevisionStatus |
+              select(.state | IN("PENDING_REVIEW", "STAGED", "PUBLISHED", "PUBLISHED_TO_TESTERS")))]
+            | any(.[]; any(.distributionChannels[]?; .crxVersion == $version))
+          ' <<< "$status" >/dev/null; then
+            echo "$TAG is already submitted to the Chrome Web Store."
+            exit 0
+          fi
+          if jq -e '.submittedItemRevisionStatus.state | IN("PENDING_REVIEW", "STAGED")' \
+            <<< "$status" >/dev/null; then
+            echo "Another version is in review or staged. Retry once it is published." >&2
+            exit 1
+          fi
+          if jq -e '.lastAsyncUploadState == "IN_PROGRESS"' <<< "$status" >/dev/null; then
+            echo "The Chrome Web Store is still processing a previous upload. Retry once it finishes." >&2
+            exit 1
+          fi
+
+          upload=$(store_api --request POST --upload-file "simple-tracker-for-chatgpt-$TAG.zip" \
+            "$api/upload/v2/$item:upload")
+          upload_state=$(jq -er .uploadState <<< "$upload")
+          for attempt in {1..24}; do
+            if [[ "$upload_state" != "IN_PROGRESS" ]]; then
+              break
+            fi
+            sleep 5
+            status=$(store_api "$api/v2/$item:fetchStatus")
+            upload_state=$(jq -er .lastAsyncUploadState <<< "$status")
+          done
+          if [[ "$upload_state" != "SUCCEEDED" ]]; then
+            echo "Chrome Web Store upload status is $upload_state. Check the Developer Dashboard before retrying." >&2
+            exit 1
+          fi
+
+          submission=$(store_api --request POST --header 'Content-Type: application/json' \
+            --data '{"publishType":"DEFAULT_PUBLISH"}' "$api/v2/$item:publish")
+          submission_state=$(jq -er '.state | select(IN("PENDING_REVIEW", "PUBLISHED", "PUBLISHED_TO_TESTERS"))' \
+            <<< "$submission") || {
+            echo "Unexpected Chrome Web Store submission response:" >&2
+            printf '%s\n' "$submission" >&2
+            exit 1
+          }
+          echo "Chrome Web Store submission for $TAG: $submission_state"
+          jq -r '.warningInfo.warnings[]? | .description' <<< "$submission"
