@@ -1,7 +1,7 @@
 [
   {
     "version": "1.2.1",
-    "date": "2026-11-20",
+    "date": "2026-11-23",
     "title": "Support the updated ChatGPT layout",
     "changes": [
       "The message-box usage bar, sidebar Usage section and native usage-notice settings work with the updated ChatGPT layout.",
