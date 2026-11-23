@@ -95,17 +95,14 @@
     input.addEventListener('change', () => chrome.storage.local.set({ usageDisplay: input.value }));
   }
 
-  // Both native notices are hidden by default; open chatgpt.com tabs follow storage changes.
+  // The native usage-limit banner is hidden by default; open tabs follow storage changes.
   const showBar = $('show-bar');
-  const hideUsagePopup = $('hide-usage-popup');
   const hideUsageLimitBanner = $('hide-usage-limit-banner');
-  chrome.storage.local.get(['showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner']).then((options) => {
+  chrome.storage.local.get(['showComposerBar', 'hideUsageLimitBanner']).then((options) => {
     showBar.checked = options.showComposerBar !== false;
-    hideUsagePopup.checked = options.hideUsagePopup !== false;
     hideUsageLimitBanner.checked = options.hideUsageLimitBanner !== false;
   });
   showBar.addEventListener('change', () => chrome.storage.local.set({ showComposerBar: showBar.checked }));
-  hideUsagePopup.addEventListener('change', () => chrome.storage.local.set({ hideUsagePopup: hideUsagePopup.checked }));
   hideUsageLimitBanner.addEventListener('change', () => chrome.storage.local.set({ hideUsageLimitBanner: hideUsageLimitBanner.checked }));
 
   // Opens the Release Notes page in a tab (a plain link would open it inside the popup).

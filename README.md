@@ -10,7 +10,6 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
   toolbar popup)
 - Show usage as used or left: switch between them under "Options" in the
   toolbar popup
-- Hide ChatGPT's remaining usage popup: turn it on or off under "Options" in the toolbar popup
 - Hide ChatGPT's usage limit reached banner: turn it on or off under "Options" in the toolbar popup
 - Separate Usage and Available Resets sections in the Home and Codex sidebars. Collapse each independently.
 - Available manual resets with expiration dates and a confirmation before use (hidden when none are available)
@@ -44,7 +43,7 @@ your conversations, and it never sees your password.
 
 **What it stores:** Your latest usage numbers and available resets (names, IDs and expiration dates), a running total of credits used per month, whether
 each sidebar section is collapsed, whether to show the usage bar in the message box, whether to hide
-ChatGPT's remaining-usage popup or usage-limit banner, whether to show usage as used or left,
+ChatGPT's usage-limit banner, whether to show usage as used or left,
 whether to show release notes after updates, when to retry after a rate limit, and a short troubleshooting
 log. All of it is kept in your browser's
 extension storage and is removed when you uninstall the extension.

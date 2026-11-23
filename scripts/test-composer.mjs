@@ -71,7 +71,7 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
   });
   // Inspect the real content-script decisions without starting polling or a browser lifecycle.
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.composer = { detectMode, updateMode, barWanted, mountBar, bar, setUsagePopupHidden, state };'), ctx);
+    '  CGUT.composer = { detectMode, updateMode, barWanted, mountBar, bar, state };'), ctx);
   return {
     ...ctx.CGUT.composer,
     advance: () => { now += 6000; },
@@ -182,15 +182,6 @@ test('the popup setting still disables the bar in Work and Codex', () => {
     c.state.showBar = false;
     assert.equal(c.barWanted(), false);
   }
-});
-
-test('the popup setting hides and restores ChatGPT native usage card', () => {
-  const c = composer();
-  c.setUsagePopupHidden(true);
-  assert.equal(c.hasClass('cgut-hide-usage-popup'), true);
-
-  c.setUsagePopupHidden(false);
-  assert.equal(c.hasClass('cgut-hide-usage-popup'), false);
 });
 
 test('the bar waits for the live composer on page load', () => {

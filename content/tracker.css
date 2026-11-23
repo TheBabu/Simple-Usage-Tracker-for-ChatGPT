@@ -1,11 +1,5 @@
 /* The composer bar and the sidebar section. Shared pieces (bars, rows, tooltip) are in ui.css. */
 
-/* Native low-usage cards may be wrapped for container queries. */
-html.cgut-hide-usage-popup .cgut-usage-popup,
-html.cgut-hide-usage-popup [class~="@container"]:has(> .cgut-usage-popup:only-child) {
-  display: none !important;
-}
-
 /* Hide the entire usage-limit banner wrapper so it leaves no blank space in the chat. */
 html.cgut-hide-usage-limit-banner .cgut-usage-limit-banner,
 html.cgut-hide-usage-limit-banner [class~="@container"]:has(> .cgut-usage-limit-banner:only-child),

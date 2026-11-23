@@ -67,7 +67,6 @@
     replyStream: /\/backend-api\/(?:f\/)?conversation(?:[?#]|$)/,
     usageNotice: 'aside[role="status"], aside:not([role]):has(h3), section[role="status"]',
     usageNoticeTitle: 'h2, h3, [role="heading"]',
-    usageDetails: 'button[aria-label="Usage details"]',
   };
 
   const SIDEBAR_ANCHORS = [
@@ -122,24 +121,16 @@
     send({ type: 'cgut:log', message });
   }
 
-  function setUsagePopupHidden(hidden) {
-    document.documentElement.classList.toggle('cgut-hide-usage-popup', hidden);
-  }
-
   function setUsageLimitBannerHidden(hidden) {
     document.documentElement.classList.toggle('cgut-hide-usage-limit-banner', hidden);
   }
 
   function markUsageNotices() {
     const limit = /^(?:you['’]ve (?:reached|hit) your .*?\busage limit|you['’]re out of (?:[\w -]+ )?usage)\b/i;
-    const warning = /^you['’]re approaching your usage limit\b/i;
     for (const notice of document.querySelectorAll(SELECTORS.usageNotice)) {
       if (notice.closest('.cgut-root')) continue;
       const title = (notice.querySelector(SELECTORS.usageNoticeTitle)?.textContent || notice.textContent).trim();
-      const isLimit = limit.test(title);
-      const isWarning = warning.test(title) || !!notice.querySelector(SELECTORS.usageDetails);
-      notice.classList.toggle('cgut-usage-limit-banner', isLimit);
-      notice.classList.toggle('cgut-usage-popup', !isLimit && isWarning);
+      notice.classList.toggle('cgut-usage-limit-banner', limit.test(title));
     }
   }
 
@@ -868,7 +859,7 @@
     clearTimeout(state.pollTimer);
     dropBar();
     sidebar.root.remove();
-    document.documentElement.classList.remove('cgut-hide-usage-popup', 'cgut-hide-usage-limit-banner');
+    document.documentElement.classList.remove('cgut-hide-usage-limit-banner');
   }
 
   function tick() {
@@ -882,7 +873,7 @@
   async function init() {
     const stored = await chrome.storage.local.get([
       'usage', 'usageError', 'usageBackoff', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed',
-      'showComposerBar', 'hideUsagePopup', 'hideUsageLimitBanner', 'usageDisplay',
+      'showComposerBar', 'hideUsageLimitBanner', 'usageDisplay',
     ]);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
@@ -890,7 +881,6 @@
     state.ledger = stored.creditLedger || {};
     state.showBar = stored.showComposerBar !== false;
     state.display = stored.usageDisplay === 'left' ? 'left' : 'used';
-    setUsagePopupHidden(stored.hideUsagePopup !== false);
     setUsageLimitBannerHidden(stored.hideUsageLimitBanner !== false);
     setCollapsed(stored.sidebarCollapsed === true);
     setResetsCollapsed(stored.sidebarResetsCollapsed === true);
@@ -924,7 +914,6 @@
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar
       }
-      if (changes.hideUsagePopup) setUsagePopupHidden(changes.hideUsagePopup.newValue !== false);
       if (changes.hideUsageLimitBanner) setUsageLimitBannerHidden(changes.hideUsageLimitBanner.newValue !== false);
       if (changes.usageDisplay) {
         state.display = changes.usageDisplay.newValue === 'left' ? 'left' : 'used';
