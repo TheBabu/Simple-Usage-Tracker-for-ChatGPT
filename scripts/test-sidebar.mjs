@@ -109,11 +109,13 @@ test('uses the scroll area below the active sidebar header', () => {
 
   assert.equal(findSidebarAnchor().node, chatScroll);
   assert.equal(findSidebarAnchor().mode, 'afterFirstChild');
+  assert.ok(!findSidebarAnchor().inDestinationBody);
   home.hasLayout = false;
   for (const view of destinations) {
     view.hasLayout = true;
     assert.equal(findSidebarAnchor().node, view.children[1]);
     assert.equal(findSidebarAnchor().mode, 'prepend');
+    assert.equal(findSidebarAnchor().inDestinationBody, true);
     view.hasLayout = false;
   }
 });

@@ -573,7 +573,9 @@
       const body = next === sidebar.root ? next.nextElementSibling : next;
       // Home wraps its chat scroller. Other destinations share a header followed by a scroll area.
       if (scroll && body?.contains(scroll)) return { node: scroll, mode: 'afterFirstChild' };
-      if (body?.matches(SELECTORS.sidebarBody) && isSidebarVisible(body)) return { node: body, mode: 'prepend' };
+      if (body?.matches(SELECTORS.sidebarBody) && isSidebarVisible(body)) {
+        return { node: body, mode: 'prepend', inDestinationBody: true };
+      }
       return { node: header, mode: 'after' };
     }
     if (scroll) return { node: scroll, mode: 'afterFirstChild' };
@@ -793,7 +795,8 @@
       el.remove();
       return false;
     }
-    const { node, mode } = target;
+    const { node, mode, inDestinationBody = false } = target;
+    el.classList.toggle('cgut-sidebar-in-destination', inDestinationBody);
     if (mode === 'afterFirstChild') {
       const first = node.firstElementChild === el ? el.nextElementSibling : node.firstElementChild;
       if (!first) {

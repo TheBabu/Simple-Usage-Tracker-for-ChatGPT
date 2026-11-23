@@ -137,8 +137,14 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   --cgut-sidebar-inset: calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px));
   flex-shrink: 0;
   color: var(--cgut-text);
-  /* The following native section already supplies the gap at this insertion point. */
   margin-bottom: 0;
+}
+
+/* Destination scrollers pad the first native group. The Usage heading has its own space above
+   its label, and the native rows below it start flush with their group. */
+.cgut-sidebar-in-destination {
+  margin-block-start: calc(-1 * var(--sidebar-navigation-header-gap, 0px));
+  margin-block-end: calc(2 * var(--spacing, 4px));
 }
 
 /* Match the native Projects/Recents section inset and 36px browser toggle. */
