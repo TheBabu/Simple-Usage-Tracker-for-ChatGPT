@@ -41,9 +41,17 @@ To build the zip locally, run `node scripts/build.mjs` (Node 18 or newer). It la
    the Chrome Web Store Developer Dashboard. The dashboard also shows your publisher ID under
    **Publisher → Settings**. [Chrome Web Store service account setup](https://developer.chrome.com/docs/webstore/service-accounts)
 2. Create a Workload Identity pool and an OIDC provider with issuer
-   `https://token.actions.githubusercontent.com`. Map `google.subject=assertion.sub` and
-   `attribute.repository_id=assertion.repository_id`. Use this provider condition for this
-   repository's `main` branch.
+   `https://token.actions.githubusercontent.com`. Under **Configure provider attributes**, add
+   these mappings.
+
+   | Google attribute | OIDC claim |
+   |---|---|
+   | `google.subject` | `assertion.sub` |
+   | `attribute.repository_id` | `assertion.repository_id` |
+   | `attribute.ref` | `assertion.ref` |
+
+   Under **Attribute conditions** on the same screen, paste this expression to restrict access
+   to this repository's `main` branch.
 
    ```text
    assertion.repository_id == '1403874179' && assertion.ref == 'refs/heads/main'
