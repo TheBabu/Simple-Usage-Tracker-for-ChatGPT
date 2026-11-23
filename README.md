@@ -18,7 +18,7 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
 
 Not affiliated with or endorsed by OpenAI.
 
-#### Developer note:
+#### "Developer" note:
 I really liked lugia19's extension for Claude, however I am transitioning to ChatGPT since it suits my needs better. But I couldn't find a good extension that is like lugia19's for ChatGPT, so I decided to basically entirely vibe code an entire extension for this reason (ironically mostly by Claude).
 I don't plan to to actively maintain this extension, as this is just a something I wanted personally and I thought I would share to other people. I will just update it as I personally see fit.
 
