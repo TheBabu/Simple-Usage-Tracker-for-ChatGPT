@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.5",
+    "date": "2026-11-25",
+    "title": "Match native sidebar section spacing",
+    "changes": [
+      "Usage and Available Resets now have the same spacing between dropdowns as Projects and Recents, whether expanded or collapsed."
+    ]
+  },
+  {
     "version": "1.2.4",
     "date": "2026-11-25",
     "title": "More reliable usage polling",

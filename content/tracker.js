@@ -413,7 +413,7 @@
   const CHEVRON_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>';
 
   function createSidebarSection(titleText, bodyId, onToggle, root = ui.el('section')) {
-    root.classList.add('cgut-sidebar-section');
+    root.classList.add('cgut-root', 'cgut-sidebar', 'cgut-sidebar-section');
     const header = ui.el('button', 'cgut-sidebar-header');
     header.type = 'button';
     header.setAttribute('aria-controls', bodyId);
@@ -429,12 +429,11 @@
   }
 
   function createSidebar() {
-    const root = ui.el('div', 'cgut-root cgut-sidebar');
-    root.id = 'cgut-sidebar';
     const panel = new ui.UsagePanel();
     const usage = createSidebarSection('Usage', 'cgut-sidebar-usage', () => {
       if (alive()) chrome.storage.local.set({ sidebarCollapsed: !state.collapsed });
     });
+    usage.root.id = 'cgut-sidebar';
     usage.body.append(panel.root);
 
     // Reuse the reset section so the panel still hides it when the last reset expires or is used.
@@ -445,8 +444,7 @@
     resets.body.classList.add('cgut-panel');
     resets.body.append(panel.resetList, panel.resetStatus);
 
-    root.append(usage.root, resets.root);
-    return { root, usage, resets, panel };
+    return { usage, resets, panel };
   }
 
   const sidebar = createSidebar();
@@ -776,27 +774,33 @@
     for (const delay of RECHECK_DELAYS_MS) setTimeout(queueMount, delay);
   }
 
+  function removeSidebar() {
+    sidebar.usage.root.remove();
+    sidebar.resets.root.remove();
+  }
+
   function mountSidebar() {
-    const el = sidebar.root;
     const target = findSidebarAnchor();
     if (!target) {
-      el.remove();
+      removeSidebar();
       return;
     }
+    const { usage, resets } = sidebar;
     const { node, mode } = target;
+    // Each dropdown must occupy its own slot in the native sidebar layout, so ChatGPT supplies
+    // the same spacing as between Projects and Recents, even when either dropdown is collapsed.
+    const parent = mode === 'before' ? node.parentElement : node;
+    let before = null;
     if (mode === 'afterFirstChild') {
-      const first = node.firstElementChild === el ? el.nextElementSibling : node.firstElementChild;
-      if (!first) {
-        if (el.parentElement !== node) node.append(el);
-      } else if (first.matches(SELECTORS.sidebarSections)) {
-        if (first.previousElementSibling !== el) first.before(el);
-      } else if (first.nextElementSibling !== el) {
-        first.after(el);
-      }
+      const children = Array.from(node.children).filter((child) => child !== usage.root && child !== resets.root);
+      before = children[0]?.matches(SELECTORS.sidebarSections) ? children[0] : children[1] ?? null;
     } else if (mode === 'before') {
-      if (node.previousElementSibling !== el) node.before(el);
-    } else if (node.lastElementChild !== el) {
-      node.append(el);
+      before = node;
+    }
+    if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== resets.root ||
+        resets.root.nextElementSibling !== before) {
+      parent.insertBefore(usage.root, before);
+      parent.insertBefore(resets.root, before);
     }
   }
 
@@ -805,7 +809,7 @@
     markUsageNotices();
     if (!isUsageDestination()) {
       if (state.barOpen || bar.root.isConnected) dropBar();
-      sidebar.root.remove();
+      removeSidebar();
       return;
     }
     // The mode first, so the bar opens or closes in the same frame as a Chat/Work switch.
@@ -859,7 +863,7 @@
     clearInterval(tickTimer);
     clearTimeout(state.pollTimer);
     dropBar();
-    sidebar.root.remove();
+    removeSidebar();
     document.documentElement.classList.remove('cgut-hide-usage-limit-banner');
   }
 

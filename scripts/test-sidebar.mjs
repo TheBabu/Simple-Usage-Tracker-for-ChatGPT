@@ -18,12 +18,27 @@ function element(...selectors) {
     addEventListener() {},
     setAttribute() {},
     replaceChildren(...children) {
-      this.children = [];
+      for (const child of [...this.children]) child.remove();
       this.append(...children);
     },
     append(...children) {
-      for (const child of children) child.parent = this;
-      this.children.push(...children);
+      for (const child of children) this.insertBefore(child, null);
+    },
+    get parentElement() { return this.parent ?? null; },
+    get nextElementSibling() {
+      return this.parent?.children[this.parent.children.indexOf(this) + 1] ?? null;
+    },
+    insertBefore(child, before) {
+      child.remove();
+      const i = before === null ? this.children.length : this.children.indexOf(before);
+      assert.ok(i >= 0);
+      child.parent = this;
+      this.children.splice(i, 0, child);
+    },
+    remove() {
+      if (!this.parent) return;
+      this.parent.children.splice(this.parent.children.indexOf(this), 1);
+      this.parent = null;
     },
     matches(selector) {
       return selector.split(', ').some((value) => this.selectors.includes(value));
@@ -63,7 +78,7 @@ function sidebar(...pageChildren) {
     requestAnimationFrame: (callback) => frames.push(callback),
   });
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations };'), ctx);
+    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations, mountSidebar, removeSidebar, sidebar };'), ctx);
   return { ...ctx.CGUT.sidebar, frames, location: ctx.location };
 }
 
@@ -150,4 +165,52 @@ test('queues a remount for sidebar visibility changes and ignores unrelated anim
     onMountMutations([{ target, attributeName }]);
     assert.equal(frames.length, 1);
   }
+});
+
+test('mounts Usage and Available Resets as independent native sidebar siblings', () => {
+  const shell = element(shellMarker);
+  const scroll = element(scrollMarker);
+  const newChat = element();
+  const projects = element('[data-app-action-sidebar-section]');
+  const recents = element('[data-app-action-sidebar-section]');
+  scroll.append(newChat, projects, recents);
+  shell.append(scroll);
+  const { mountSidebar, removeSidebar, sidebar: panel } = sidebar(shell);
+  const usage = panel.usage.root;
+  const resets = panel.resets.root;
+
+  mountSidebar();
+  assert.deepEqual(scroll.children, [newChat, usage, resets, projects, recents]);
+  // Already mounted: don't move either section or trigger another mutation.
+  const insertBefore = scroll.insertBefore;
+  scroll.insertBefore = () => assert.fail('Unexpected remount');
+  mountSidebar();
+  scroll.insertBefore = insertBefore;
+
+  // ChatGPT can replace the scroller or omit the New chat row.
+  const replacement = element(scrollMarker);
+  replacement.append(projects, recents);
+  scroll.remove();
+  shell.append(replacement);
+  mountSidebar();
+  assert.deepEqual(replacement.children, [usage, resets, projects, recents]);
+  replacement.hasLayout = false;
+  mountSidebar();
+  assert.deepEqual(replacement.children, [projects, recents]);
+  replacement.hasLayout = true;
+  mountSidebar();
+  removeSidebar();
+  assert.deepEqual(replacement.children, [projects, recents]);
+});
+
+test('mounts both sidebar sections in the legacy history fallback', () => {
+  const nav = element('nav[aria-label="Chat history"]');
+  const history = element('#history');
+  nav.append(history);
+  const { mountSidebar, sidebar: panel } = sidebar(nav);
+  mountSidebar();
+  assert.deepEqual(nav.children, [panel.usage.root, panel.resets.root, history]);
+  history.hasLayout = false;
+  mountSidebar();
+  assert.deepEqual(nav.children, [history, panel.usage.root, panel.resets.root]);
 });
