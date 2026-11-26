@@ -5,7 +5,8 @@
     "title": "More reliable usage polling",
     "changes": [
       "Repeated rate limits slow usage updates further, up to five minutes (or longer if ChatGPT asks). After five minutes of successful retries, visible tabs return to 10-second updates.",
-      "Debug now shows polling status, the next eligible update, recovery progress, and clearer troubleshooting logs."
+      "Debug now shows polling status, the next eligible update, recovery progress, and clearer troubleshooting logs.",
+      "Usage rows and available resets have consistent spacing in the sidebar. Reset names have more room and expiration dates sit directly beneath them."
     ]
   },
   {

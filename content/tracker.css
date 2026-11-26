@@ -129,6 +129,8 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 
 .cgut-sidebar {
   --cgut-sidebar-inset: calc(var(--padding-row-x, 6px) + var(--padding-row-cell-x, 10px));
+  --cgut-sidebar-row-gap: 12px;
+  --cgut-sidebar-detail-gap: 4px;
   flex-shrink: 0;
   color: var(--cgut-text);
   margin-bottom: 0;
@@ -190,7 +192,17 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 }
 
 .cgut-sidebar-body {
-  padding: 4px var(--cgut-sidebar-inset) 6px;
+  padding: var(--cgut-sidebar-detail-gap) var(--cgut-sidebar-inset) 8px;
+}
+
+/* Keep the space between separate entries larger than the space within an entry. */
+.cgut-sidebar .cgut-panel,
+.cgut-sidebar .cgut-reset-list {
+  gap: var(--cgut-sidebar-row-gap);
+}
+
+.cgut-sidebar .cgut-row:not(.cgut-credits-row) .cgut-row-top {
+  margin-bottom: var(--cgut-sidebar-detail-gap);
 }
 
 /* Both sidebar sections use the same header and body spacing, without the popup's divider. */
@@ -199,40 +211,61 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   padding-top: 0;
 }
 
-.cgut-sidebar .cgut-reset-item:first-child {
+/* Keep the reset name and expiration together; don't reserve room for hidden buttons. */
+.cgut-sidebar .cgut-reset-item {
   margin-top: 0;
+  row-gap: var(--cgut-sidebar-detail-gap);
 }
 
-/* Give the expiration its own line so it stays clear of the confirmation buttons. */
-.cgut-sidebar .cgut-reset-item {
-  row-gap: 2px;
+.cgut-sidebar .cgut-reset-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cgut-sidebar-detail-gap);
+  min-width: 0;
 }
 
 .cgut-sidebar .cgut-reset-title {
-  align-self: center;
+  align-self: auto;
+  line-height: 16px;
 }
 
 .cgut-sidebar .cgut-reset-actions {
   grid-row: 1;
+  width: auto;
 }
 
 .cgut-sidebar .cgut-reset-details > .cgut-row-sub {
+  width: auto;
   white-space: normal;
 }
 
+/* Confirmation needs two buttons; put them below the details rather than squeezing the title. */
+.cgut-sidebar .cgut-reset-item:has(.cgut-reset-cancel:not([hidden])) .cgut-reset-details {
+  grid-column: 1 / -1;
+}
+
+.cgut-sidebar .cgut-reset-item:has(.cgut-reset-cancel:not([hidden])) .cgut-reset-actions {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: end;
+  flex-wrap: wrap;
+}
+
 .cgut-sidebar .cgut-reset-list {
+  display: flex;
+  flex-direction: column;
   container-type: inline-size;
 }
 
-/* When reserving both buttons leaves too little room for the title, put the controls below. */
-@container (width < 12rem) {
-  .cgut-sidebar .cgut-reset-title,
+/* On narrow sidebars, give the details the full width so the name can stay on one line. */
+@container (width < 14rem) {
+  .cgut-sidebar .cgut-reset-details,
   .cgut-sidebar .cgut-reset-actions {
     grid-column: 1 / -1;
   }
 
   .cgut-sidebar .cgut-reset-actions {
-    grid-row: 3;
+    grid-row: 2;
     justify-self: end;
     max-width: 100%;
     flex-wrap: wrap;
