@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.7",
+    "date": "2026-11-26",
+    "title": "Refine sidebar reset spacing",
+    "changes": [
+      "Available Resets now has the same heading spacing as the popup, with reset names and expiration dates closer together.",
+      "Expiration dates stay on one line, including the time zone, whenever the sidebar has room."
+    ]
+  },
+  {
     "version": "1.2.6",
     "date": "2026-11-26",
     "title": "Restore the compact sidebar layout",
