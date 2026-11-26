@@ -2,8 +2,8 @@
 
 See your ChatGPT usage limits, credits and available manual resets without leaving the chat. Inspired by [lugia19's Claude Usage Tracker](https://github.com/lugia19/Claude-Usage-Extension).
 
-<img width="1000" alt="The Usage section in the sidebar and the usage bar in the message box, showing available resets and how much is used: 5-hour 60% used, weekly 9% used" src="docs/screenshot-used.webp" />
-<img width="1000" alt="The same view with available resets showing how much is left: 5-hour 40% left, weekly 91% left" src="docs/screenshot-left.webp" />
+<img width="1000" alt="Work mode showing 44% of the 5-hour limit and 60% of the weekly limit used, with an available reset below the sidebar usage bars" src="docs/screenshot-used.webp" />
+<img width="1000" alt="Work mode showing 56% of the 5-hour limit and 40% of the weekly limit left, with an available reset below the sidebar usage bars" src="docs/screenshot-left.webp" />
 
 - A usage bar in the message box while you're in Work or Codex mode: your 5-hour usage, an arrow marking
   your weekly usage, and when the 5-hour limit resets (you can turn it off under "Options" in the
@@ -34,20 +34,24 @@ I don't plan to to actively maintain this extension, as this is just a something
 2. Go to `chrome://extensions` and turn on **Developer mode**.
 3. Click **Load unpacked** and choose the unzipped folder.
 
-## Optional: separate Available Resets dropdown
+## Optional Available Resets dropdown
 
-If you have many available resets, you can make them their own collapsible sidebar section
-without adding another option to the popup.
+By default, **Available Resets** appears below the bars in the collapsible **Usage** section.
+If you have a long list of resets, you can give **Available Resets** its own collapsible section
+with a command in the extension's DevTools console.
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Find Simple Usage Tracker for ChatGPT and click **service worker** under Inspect views.
-3. In the extension's DevTools **Console** (not the ChatGPT page console), run:
+3. Run this command in the **Console** tab.
 
 ```js
 chrome.storage.local.set({ separateResetsDropdown: true })
 ```
 
-To restore the default divider layout, run:
+You can also open DevTools on `chatgpt.com`. In the **Console** tab, open the context dropdown
+labeled **top** and select **Simple Usage Tracker for ChatGPT** before running the command.
+
+To put **Available Resets** back under **Usage**, run the following in the same console.
 
 ```js
 chrome.storage.local.set({ separateResetsDropdown: false })
