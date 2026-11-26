@@ -9,14 +9,22 @@ const scrollMarker = '[data-app-action-sidebar-scroll]';
 const activeRailDestination = '[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]';
 
 function element(...selectors) {
+  const classes = new Set();
+  const attributes = {};
   return {
     selectors,
     children: [],
     visibility: 'visible',
     hasLayout: true,
-    classList: { add() {} },
+    classList: {
+      add: (...names) => names.forEach((name) => classes.add(name)),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+      contains: (name) => classes.has(name),
+      toggle: (name, force) => force ? classes.add(name) : classes.delete(name),
+    },
     addEventListener() {},
-    setAttribute() {},
+    setAttribute(name, value) { attributes[name] = value; },
+    getAttribute(name) { return attributes[name]; },
     replaceChildren(...children) {
       for (const child of [...this.children]) child.remove();
       this.append(...children);
@@ -69,7 +77,18 @@ function sidebar(...pageChildren) {
     el: () => element(),
     createPct: () => ({ root: element() }),
     createProgress: () => ({ root: element() }),
-    UsagePanel: class { root = element(); resets = element(); resetList = element(); resetStatus = element(); },
+    UsagePanel: class {
+      root = element();
+      resets = element();
+      resetHeading = element();
+      resetList = element();
+      resetStatus = element();
+      note = element();
+      constructor() {
+        this.resets.append(this.resetHeading, this.resetList);
+        this.root.append(this.resets, this.resetStatus, this.note);
+      }
+    },
   };
   const ctx = vm.createContext({
     CGUT: { ui }, document,
@@ -78,7 +97,7 @@ function sidebar(...pageChildren) {
     requestAnimationFrame: (callback) => frames.push(callback),
   });
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations, mountSidebar, removeSidebar, sidebar };'), ctx);
+    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations, mountSidebar, removeSidebar, setSeparateResetsDropdown, setCollapsed, setResetsCollapsed, sidebar };'), ctx);
   return { ...ctx.CGUT.sidebar, frames, location: ctx.location };
 }
 
@@ -175,7 +194,8 @@ test('mounts Usage and Available Resets as independent native sidebar siblings',
   const recents = element('[data-app-action-sidebar-section]');
   scroll.append(newChat, projects, recents);
   shell.append(scroll);
-  const { mountSidebar, removeSidebar, sidebar: panel } = sidebar(shell);
+  const { mountSidebar, removeSidebar, setSeparateResetsDropdown, sidebar: panel } = sidebar(shell);
+  setSeparateResetsDropdown(true);
   const usage = panel.usage.root;
   const resets = panel.resets.root;
 
@@ -207,10 +227,68 @@ test('mounts both sidebar sections in the legacy history fallback', () => {
   const nav = element('nav[aria-label="Chat history"]');
   const history = element('#history');
   nav.append(history);
-  const { mountSidebar, sidebar: panel } = sidebar(nav);
+  const { mountSidebar, setSeparateResetsDropdown, sidebar: panel } = sidebar(nav);
+  setSeparateResetsDropdown(true);
   mountSidebar();
   assert.deepEqual(nav.children, [panel.usage.root, panel.resets.root, history]);
   history.hasLayout = false;
   mountSidebar();
   assert.deepEqual(nav.children, [history, panel.usage.root, panel.resets.root]);
+});
+
+
+test('defaults to a single Usage section and preserves reset rows when switching layouts', () => {
+  const shell = element(shellMarker);
+  const scroll = element(scrollMarker);
+  const projects = element('[data-app-action-sidebar-section]');
+  scroll.append(projects);
+  shell.append(scroll);
+  const { mountSidebar, removeSidebar, setSeparateResetsDropdown, setCollapsed, setResetsCollapsed, sidebar: view } = sidebar(shell);
+  const { usage, panel } = view;
+  const row = element();
+  panel.resetList.append(row);
+
+  mountSidebar();
+  assert.deepEqual(scroll.children, [usage.root, projects]);
+  assert.equal(panel.resets.parentElement, panel.root);
+  assert.deepEqual(panel.resets.children, [panel.resetHeading, panel.resetList]);
+  assert.equal(panel.resetStatus.parentElement, panel.root);
+  assert.equal(view.resets, null);
+  setCollapsed(true);
+  assert.equal(usage.body.hidden, true);
+  setResetsCollapsed(true);
+
+  setSeparateResetsDropdown(true);
+  mountSidebar();
+  assert.deepEqual(scroll.children, [usage.root, panel.resets, projects]);
+  assert.equal(view.resets.root, panel.resets);
+  assert.equal(view.resets.body.hidden, true);
+  assert.equal(view.resets.header.getAttribute('aria-expanded'), 'false');
+  assert.equal(panel.resetList.parentElement, view.resets.body);
+  assert.equal(panel.resetStatus.parentElement, view.resets.body);
+  assert.equal(panel.resetList.children[0], row);
+  setResetsCollapsed(false);
+  assert.equal(view.resets.body.hidden, false);
+  assert.equal(usage.body.hidden, true);
+
+  // Expiration/redemption can hide the reset section even when the independent dropdown is open.
+  panel.resets.hidden = true;
+  setSeparateResetsDropdown(false);
+  mountSidebar();
+  assert.deepEqual(scroll.children, [usage.root, projects]);
+  assert.equal(panel.resets.hidden, true);
+  assert.equal(panel.resets.classList.contains('cgut-sidebar'), false);
+  assert.deepEqual(panel.resets.children, [panel.resetHeading, panel.resetList]);
+  assert.deepEqual(panel.root.children, [panel.resets, panel.resetStatus, panel.note]);
+  assert.equal(panel.resetList.children[0], row);
+  assert.equal(usage.body.hidden, true);
+  removeSidebar();
+  assert.deepEqual(scroll.children, [projects]);
+  assert.equal(panel.resets.parentElement, panel.root);
+  mountSidebar();
+  assert.deepEqual(scroll.children, [usage.root, projects]);
+  setSeparateResetsDropdown(true);
+  mountSidebar();
+  assert.equal(panel.resets.hidden, true);
+  assert.equal(view.resets.body.hidden, false);
 });

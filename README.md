@@ -11,7 +11,7 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
 - Show usage as used or left: switch between them under "Options" in the
   toolbar popup
 - Hide ChatGPT's usage limit reached banner: turn it on or off under "Options" in the toolbar popup
-- Separate Usage and Available Resets sections in the Home and Codex sidebars. Collapse each independently.
+- A collapsible Usage section in the Home and Codex sidebars, with available resets below a divider.
 - Available manual resets with expiration dates and a confirmation before use (hidden when none are available)
 - Your credit balance, and how many credits a message used when it was paid for with credits
 - Updates on its own as you chat
@@ -34,6 +34,27 @@ I don't plan to to actively maintain this extension, as this is just a something
 2. Go to `chrome://extensions` and turn on **Developer mode**.
 3. Click **Load unpacked** and choose the unzipped folder.
 
+## Optional: separate Available Resets dropdown
+
+If you have many available resets, you can make them their own collapsible sidebar section
+without adding another option to the popup.
+
+1. Open `chrome://extensions` and turn on **Developer mode**.
+2. Find Simple Usage Tracker for ChatGPT and click **service worker** under Inspect views.
+3. In the extension's DevTools **Console** (not the ChatGPT page console), run:
+
+```js
+chrome.storage.local.set({ separateResetsDropdown: true })
+```
+
+To restore the default divider layout, run:
+
+```js
+chrome.storage.local.set({ separateResetsDropdown: false })
+```
+
+The setting is saved and takes effect in open ChatGPT tabs automatically.
+
 ## Privacy Policy
 
 **What it accesses:** While you're signed in to chatgpt.com, the extension uses your existing
@@ -42,7 +63,7 @@ It can redeem a selected reset after you confirm. It does not read
 your conversations, and it never sees your password.
 
 **What it stores:** Your latest usage numbers and available resets (names, IDs and expiration dates), a running total of credits used per month, whether
-each sidebar section is collapsed, whether to show the usage bar in the message box, whether to hide
+each sidebar section is collapsed, whether resets use a separate dropdown, whether to show the usage bar in the message box, whether to hide
 ChatGPT's usage-limit banner, whether to show usage as used or left,
 whether to show release notes after updates, rate-limit retry and recovery timing, and a short troubleshooting
 log. All of it is kept in your browser's

@@ -204,7 +204,7 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   margin-bottom: var(--cgut-sidebar-detail-gap);
 }
 
-/* Both sidebar sections use the same header and body spacing, without the popup's divider. */
+/* Only the optional separate reset dropdown omits the divider. */
 .cgut-sidebar.cgut-resets {
   border-top: 0;
   padding-top: 0;

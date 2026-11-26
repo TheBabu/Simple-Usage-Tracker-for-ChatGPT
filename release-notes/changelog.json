@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.6",
+    "date": "2026-11-26",
+    "title": "Restore the compact sidebar layout",
+    "changes": [
+      "Available Resets appears below a divider inside Usage again by default.",
+      "Users with many resets can still opt into a separate collapsible dropdown using the console command documented in the README."
+    ]
+  },
+  {
     "version": "1.2.5",
     "date": "2026-11-25",
     "title": "Match native sidebar section spacing",

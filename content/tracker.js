@@ -83,6 +83,7 @@
     ledger: {},
     collapsed: false,
     resetsCollapsed: false,
+    separateResetsDropdown: false, // console-only preference
     showBar: true,         // the popup's "Usage bar in the message box" option
     display: 'used',       // the popup's "Show usage" option: 'used' or 'left'
     inFlight: null,
@@ -436,18 +437,33 @@
     usage.root.id = 'cgut-sidebar';
     usage.body.append(panel.root);
 
-    // Reuse the reset section so the panel still hides it when the last reset expires or is used.
-    // Only the sidebar replaces its static heading; the toolbar popup keeps the shared layout.
-    const resets = createSidebarSection('Available Resets', 'cgut-sidebar-resets', () => {
-      if (alive()) chrome.storage.local.set({ sidebarResetsCollapsed: !state.resetsCollapsed });
-    }, panel.resets);
-    resets.body.classList.add('cgut-panel');
-    resets.body.append(panel.resetList, panel.resetStatus);
-
-    return { usage, resets, panel };
+    return { usage, resets: null, panel };
   }
 
   const sidebar = createSidebar();
+
+  function setSeparateResetsDropdown(separate) {
+    if (state.separateResetsDropdown === separate) return;
+    state.separateResetsDropdown = separate;
+    const { panel } = sidebar;
+
+    // Move the existing reset list, not a new panel, so cached rows, confirmation and status
+    // survive a layout change. The shared panel still hides the section when no resets remain.
+    if (separate) {
+      sidebar.resets = createSidebarSection('Available Resets', 'cgut-sidebar-resets', () => {
+        if (alive()) chrome.storage.local.set({ sidebarResetsCollapsed: !state.resetsCollapsed });
+      }, panel.resets);
+      sidebar.resets.body.classList.add('cgut-panel');
+      sidebar.resets.body.append(panel.resetList, panel.resetStatus);
+      setSectionCollapsed(sidebar.resets, state.resetsCollapsed);
+    } else {
+      panel.resets.classList.remove('cgut-root', 'cgut-sidebar', 'cgut-sidebar-section', 'cgut-collapsed');
+      panel.resets.replaceChildren(panel.resetHeading, panel.resetList);
+      panel.root.insertBefore(panel.resets, panel.note);
+      panel.root.insertBefore(panel.resetStatus, panel.note);
+      sidebar.resets = null;
+    }
+  }
 
   function setCollapsed(collapsed) {
     state.collapsed = collapsed;
@@ -456,7 +472,7 @@
 
   function setResetsCollapsed(collapsed) {
     state.resetsCollapsed = collapsed;
-    setSectionCollapsed(sidebar.resets, collapsed);
+    if (sidebar.resets) setSectionCollapsed(sidebar.resets, collapsed);
   }
 
   function setSectionCollapsed(section, collapsed) {
@@ -776,7 +792,7 @@
 
   function removeSidebar() {
     sidebar.usage.root.remove();
-    sidebar.resets.root.remove();
+    sidebar.resets?.root.remove();
   }
 
   function mountSidebar() {
@@ -792,15 +808,19 @@
     const parent = mode === 'before' ? node.parentElement : node;
     let before = null;
     if (mode === 'afterFirstChild') {
-      const children = Array.from(node.children).filter((child) => child !== usage.root && child !== resets.root);
+      const children = Array.from(node.children).filter((child) => child !== usage.root && child !== resets?.root);
       before = children[0]?.matches(SELECTORS.sidebarSections) ? children[0] : children[1] ?? null;
     } else if (mode === 'before') {
       before = node;
     }
-    if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== resets.root ||
-        resets.root.nextElementSibling !== before) {
+    if (resets) {
+      if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== resets.root ||
+          resets.root.nextElementSibling !== before) {
+        parent.insertBefore(usage.root, before);
+        parent.insertBefore(resets.root, before);
+      }
+    } else if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== before) {
       parent.insertBefore(usage.root, before);
-      parent.insertBefore(resets.root, before);
     }
   }
 
@@ -878,7 +898,7 @@
   async function init() {
     const stored = await chrome.storage.local.get([
       'usage', 'usageError', 'usageBackoff', 'creditLedger', 'sidebarCollapsed', 'sidebarResetsCollapsed',
-      'showComposerBar', 'hideUsageLimitBanner', 'usageDisplay',
+      'separateResetsDropdown', 'showComposerBar', 'hideUsageLimitBanner', 'usageDisplay',
     ]);
     state.usage = stored.usage || null;
     state.error = stored.usageError || null;
@@ -889,6 +909,7 @@
     setUsageLimitBannerHidden(stored.hideUsageLimitBanner !== false);
     setCollapsed(stored.sidebarCollapsed === true);
     setResetsCollapsed(stored.sidebarResetsCollapsed === true);
+    setSeparateResetsDropdown(stored.separateResetsDropdown === true);
 
     ui.installTooltips();
     render();
@@ -915,6 +936,10 @@
       if (area !== 'local') return;
       if (changes.sidebarCollapsed) setCollapsed(changes.sidebarCollapsed.newValue === true);
       if (changes.sidebarResetsCollapsed) setResetsCollapsed(changes.sidebarResetsCollapsed.newValue === true);
+      if (changes.separateResetsDropdown) {
+        setSeparateResetsDropdown(changes.separateResetsDropdown.newValue === true);
+        queueMount();
+      }
       if (changes.showComposerBar) {
         state.showBar = changes.showComposerBar.newValue !== false;
         queueMount(); // opens or closes the bar

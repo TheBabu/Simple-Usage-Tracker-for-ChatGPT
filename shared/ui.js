@@ -194,7 +194,8 @@
       this.resets.hidden = true;
       this.resets.setAttribute('aria-label', 'Available Resets');
       this.resetList = el('ul', 'cgut-reset-list');
-      this.resets.append(el('h3', 'cgut-reset-heading', 'Available Resets'), this.resetList);
+      this.resetHeading = el('h3', 'cgut-reset-heading', 'Available Resets');
+      this.resets.append(this.resetHeading, this.resetList);
       this.resetStatus = el('div', 'cgut-note');
       this.resetStatus.hidden = true;
       this.resetStatus.setAttribute('role', 'status');
