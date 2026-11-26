@@ -4,7 +4,7 @@ See your ChatGPT usage limits, credits and available manual resets without leavi
 
 <img width="1000" alt="Work mode showing 44% of the 5-hour limit and 60% of the weekly limit used, with an available reset below the sidebar usage bars" src="docs/screenshot-used.webp" />
 <img width="1000" alt="Work mode showing 56% of the 5-hour limit and 40% of the weekly limit left, with an available reset below the sidebar usage bars" src="docs/screenshot-left.webp" />
-<img width="417" alt="The extension's toolbar popup showing the 5-hour and weekly usage bars, an available reset, and display options" src="docs/screenshot-popup.webp" />
+<img width="415" alt="The extension's toolbar popup showing the 5-hour and weekly usage bars, an available reset, and display options" src="docs/screenshot-popup.webp" />
 
 - A usage bar in the message box while you're in Work or Codex mode: your 5-hour usage, an arrow marking
   your weekly usage, and when the 5-hour limit resets (you can turn it off under "Options" in the
