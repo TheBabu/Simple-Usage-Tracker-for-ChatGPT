@@ -8,7 +8,7 @@
   const $ = (id) => document.getElementById(id);
 
   const STALE_ON_OPEN_MS = 60 * 1000;
-  const KEYS = ['usage', 'usageError', 'creditLedger', 'debugLog', 'usageDisplay'];
+  const KEYS = ['usage', 'usageError', 'usageBackoff', 'creditLedger', 'debugLog', 'usageDisplay'];
 
   const panel = new ui.UsagePanel();
   $('panel').append(panel.root);
@@ -29,6 +29,7 @@
     $('plan').hidden = !plan;
     $('plan').textContent = plan || '';
     $('updated').textContent = usage ? `Updated ${CGUT.formatAgo(usage.fetchedAt, now)}` : '';
+    $('refresh').title = stored.usageBackoff ? CGUT.backoffMessage(stored.usageBackoff, now) : 'Refresh';
 
     if ($('debug').open) renderDebug();
   }
@@ -54,16 +55,52 @@
     };
   }
 
+  function dateTime(at) {
+    return at ? new Date(at).toLocaleString() : '—';
+  }
+
+  function pollingStatus(now = Date.now()) {
+    const backoff = stored.usageBackoff;
+    const error = stored.usageError;
+    const recovering = backoff?.recoveryStartedAt != null;
+    const wait = backoff ? backoff.retryAt - now : 0;
+    const recoveryWait = recovering ? backoff.recoveryStartedAt + CGUT.USAGE_RECOVERY_MS - now : 0;
+    return {
+      state: backoff ? recovering ? 'Recovering' : 'Backed off'
+        : error?.code === 'signed-out' ? 'Signed out' : error ? 'Update failed' : stored.usage ? 'Normal' : 'Waiting for first update',
+      interval: backoff ? CGUT.formatPollDelay(backoff.interval) : error?.code === 'signed-out' ? '60s (visible)' : '10s (visible)',
+      updated: stored.usage ? `${dateTime(stored.usage.fetchedAt)} (${CGUT.formatAgo(stored.usage.fetchedAt, now)})` : 'Never',
+      next: backoff ? wait > 0 ? `${CGUT.formatPollDelay(wait)} · ${dateTime(backoff.retryAt)}` : 'Ready on next poll' : 'Normal schedule',
+      limited: dateTime(backoff?.at),
+      server: dateTime(backoff?.serverRetryAt ?? (error?.status === 429 ? error.retryAt : null)),
+      recovery: backoff ? recovering ? recoveryWait > 0
+        ? `10s after ${CGUT.formatPollDelay(recoveryWait)} and a successful retry` : '10s after next successful retry'
+        : 'Waiting for a successful retry' : '—',
+      error: error ? error.message : 'None',
+    };
+  }
+
   function debugLogText() {
+    const levels = { info: 'INFO', success: 'OK', warning: 'WARN', error: 'ERROR' };
     const lines = (stored.debugLog || []).slice().reverse()
-      .map((entry) => `${new Date(entry.t).toLocaleTimeString()}  ${entry.message}`);
-    return lines.join('\n') || '(empty)';
+      .map((entry) => {
+        const time = dateTime(entry.t);
+        const first = entry.count > 1 ? ` · ${entry.count} times since ${dateTime(entry.firstAt)}` : '';
+        return `${time}  [${levels[entry.level] || 'INFO'}]${first}\n${entry.message}`;
+      });
+    return lines.join('\n\n') || '(empty)';
+  }
+
+  function setText(id, value) {
+    const element = $(id);
+    if (element.textContent !== value) element.textContent = value;
   }
 
   function renderDebug() {
-    $('debug-status').textContent = JSON.stringify(debugStatus(), null, 2);
-    $('debug-log').textContent = debugLogText();
-    $('debug-raw').textContent = stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)';
+    for (const [key, value] of Object.entries(pollingStatus())) setText(`poll-${key}`, value);
+    setText('debug-status', JSON.stringify(debugStatus(), null, 2));
+    setText('debug-log', debugLogText());
+    setText('debug-raw', stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)');
   }
 
   async function refresh() {
@@ -80,9 +117,11 @@
 
   async function copyDebug() {
     const text = [
-      JSON.stringify(debugStatus(), null, 2),
-      debugLogText(),
-      stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '',
+      'ChatGPT Usage Tracker — polling status',
+      Object.entries(pollingStatus()).map(([key, value]) => `${key}: ${value}`).join('\n'),
+      'Usage details\n' + JSON.stringify(debugStatus(), null, 2),
+      'Recent events (newest first)\n' + debugLogText(),
+      'Last raw response\n' + (stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)'),
     ].join('\n\n');
     await navigator.clipboard.writeText(text);
     $('copy-debug').textContent = 'Copied';
@@ -114,7 +153,7 @@
 
   $('refresh').addEventListener('click', refresh);
   $('copy-debug').addEventListener('click', copyDebug);
-  $('clear-log').addEventListener('click', () => chrome.storage.local.set({ debugLog: [] }));
+  $('clear-log').addEventListener('click', () => chrome.runtime.sendMessage({ type: 'cgut:clear-log' }));
   $('debug').addEventListener('toggle', render);
 
   chrome.storage.onChanged.addListener((changes, area) => {

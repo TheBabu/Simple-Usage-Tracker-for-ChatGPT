@@ -44,7 +44,7 @@ your conversations, and it never sees your password.
 **What it stores:** Your latest usage numbers and available resets (names, IDs and expiration dates), a running total of credits used per month, whether
 each sidebar section is collapsed, whether to show the usage bar in the message box, whether to hide
 ChatGPT's usage-limit banner, whether to show usage as used or left,
-whether to show release notes after updates, when to retry after a rate limit, and a short troubleshooting
+whether to show release notes after updates, rate-limit retry and recovery timing, and a short troubleshooting
 log. All of it is kept in your browser's
 extension storage and is removed when you uninstall the extension.
 

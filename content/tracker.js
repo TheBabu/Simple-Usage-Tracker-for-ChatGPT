@@ -181,8 +181,9 @@
       if (!lock) return { ok: true, skipped: true };
       const { usage = null, usageBackoff = null } = await chrome.storage.local.get(['usage', 'usageBackoff']);
       const now = Date.now();
+      state.backoff = usageBackoff;
       if (now < (usageBackoff?.retryAt ?? 0)) {
-        return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
+        return { ok: false, error: CGUT.backoffMessage(usageBackoff, now) };
       }
       const fetchedAt = currentUsage(usage)?.fetchedAt || 0;
       const last = Math.max(fetchedAt, state.lastAttemptAt);
@@ -196,7 +197,7 @@
         await send({ type: 'cgut:store', fetched });
         return { ok: true };
       } catch (e) {
-        const error = CGUT.errorRecord(e);
+        const error = CGUT.errorRecord(e, now);
         await send({ type: 'cgut:error', error });
         return { ok: false, error: error.message };
       }

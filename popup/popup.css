@@ -294,6 +294,46 @@ label.popup-option {
   letter-spacing: 0.04em;
 }
 
+.debug-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 6px 10px;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid var(--app-color-border);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-status dt {
+  color: var(--cgut-text-3);
+}
+
+.debug-status dd {
+  margin: 0;
+  color: var(--cgut-text);
+  overflow-wrap: anywhere;
+}
+
+#poll-state {
+  font-weight: 600;
+}
+
+.debug-note {
+  margin: 6px 0 0;
+  color: var(--cgut-text-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.debug-details {
+  margin-top: 10px;
+}
+
+.debug-details[open] summary {
+  margin-bottom: 4px;
+}
+
 .popup-debug pre {
   max-height: 160px;
   margin: 0;

@@ -13,7 +13,8 @@
 
   const WARN_PCT = 90;
   const USAGE_REQUEST_TIMEOUT_MS = 15 * 1000;
-  const USAGE_BACKOFF_MS = [30 * 1000, 60 * 1000];
+  const USAGE_BACKOFF_MS = [30, 60, 120, 300].map((seconds) => seconds * 1000);
+  const USAGE_RECOVERY_MS = 5 * 60 * 1000;
 
   // ---------- Fetching ----------
 
@@ -26,30 +27,53 @@
   }
 
   // The plain-object form errors are stored and messaged in.
-  function errorRecord(e) {
-    return { at: Date.now(), message: e?.message || String(e), code: e?.code || 'unknown', status: e?.status ?? null, retryAt: e?.retryAt ?? null };
+  function errorRecord(e, startedAt = Date.now()) {
+    return { at: Date.now(), startedAt, message: e?.message || String(e), code: e?.code || 'unknown', status: e?.status ?? null, retryAt: e?.retryAt ?? null };
   }
 
-  function rateLimitError(response) {
-    const error = new UsageError('ChatGPT is rate limiting usage updates (HTTP 429)', 'http', 429);
+  function rateLimitError(response, endpoint) {
+    const error = new UsageError(`ChatGPT is rate limiting usage updates (HTTP 429, ${endpoint})`, 'http', 429);
     const value = response.headers.get('Retry-After')?.trim();
     const retryAt = /^\d+$/.test(value) ? Date.now() + Number(value) * 1000 : Date.parse(value);
     error.retryAt = Number.isFinite(retryAt) ? retryAt : null;
     return error;
   }
 
-  function nextUsageBackoff(previous, error, fetchedAt) {
+  function nextUsageBackoff(previous, error, fetchedAt, startedAt = fetchedAt) {
     if (error?.status === 429) {
-      const [first, next] = USAGE_BACKOFF_MS;
-      // Overlapping failures during the same cooldown should not count as separate retries.
-      const interval = !previous ? first : error.at < previous.retryAt ? previous.interval : next;
+      // Only a new retry counts toward a longer cooldown, not overlapping failures.
+      const index = Math.max(-1, USAGE_BACKOFF_MS.indexOf(previous?.interval));
+      const interval = previous && (error.startedAt ?? error.at) < previous.retryAt
+        ? previous.interval : USAGE_BACKOFF_MS[Math.min(index + 1, USAGE_BACKOFF_MS.length - 1)];
       const at = Math.max(previous?.at || 0, error.at);
-      const retryAt = Math.max(previous?.retryAt || 0, at + interval, error.retryAt || 0);
-      return { at, interval, retryAt };
+      const serverRetryAt = Math.max(previous?.serverRetryAt || 0, error.retryAt || 0) || null;
+      const retryAt = Math.max(previous?.retryAt || 0, at + interval, serverRetryAt || 0);
+      return { at, interval, retryAt, serverRetryAt, recoveryStartedAt: null };
     }
-    // A successful retry ends the cooldown. Another request can finish while it's still active.
-    if (previous && fetchedAt >= previous.retryAt) return null;
-    return previous;
+    if (!previous) return previous;
+
+    // Stay at the slower interval until successful retries span five minutes. One successful
+    // request alone doesn't tell us whether frequent polling is safe again.
+    if (error) {
+      return { ...previous, retryAt: Math.max(previous.retryAt, error.at + previous.interval), recoveryStartedAt: null };
+    }
+    if (startedAt < previous.retryAt) return previous;
+    const recoveryStartedAt = previous.recoveryStartedAt ?? fetchedAt;
+    if (fetchedAt - recoveryStartedAt >= USAGE_RECOVERY_MS) return null;
+    return { ...previous, retryAt: fetchedAt + previous.interval, recoveryStartedAt };
+  }
+
+  // Unlike limit reset times, a polling countdown needs second-level precision.
+  function formatPollDelay(ms) {
+    const seconds = Math.max(0, Math.ceil(ms / 1000));
+    return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60 ? ` ${seconds % 60}s` : ''}`;
+  }
+
+  function backoffMessage(backoff, now = Date.now()) {
+    const delay = backoff.retryAt - now;
+    return delay > 0
+      ? `Usage polling is ${backoff.recoveryStartedAt ? 'recovering' : 'paused'}. Next update in ${formatPollDelay(delay)}.`
+      : 'Usage polling can retry now.';
   }
 
   let cachedAuth = null; // { token, accountId, hint, expiresAt }
@@ -92,6 +116,7 @@
 
   async function readBootstrapFromHtml(base) {
     const res = await fetch(base + '/', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
+    if (res.status === 429) throw rateLimitError(res, 'page bootstrap');
     if (!res.ok) return null;
     return parseBootstrap((await res.text()).match(BOOTSTRAP_RE)?.[1]);
   }
@@ -103,7 +128,7 @@
     let networkError = null;
     try {
       const res = await fetch(base + SESSION_PATH, { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
-      if (res.status === 429) throw rateLimitError(res);
+      if (res.status === 429) throw rateLimitError(res, 'session');
       if (res.ok) {
         const session = await res.json().catch(() => null);
         if (session?.accessToken) return session;
@@ -113,7 +138,10 @@
       networkError = e;
     }
 
-    const fromPage = await (readBootstrap || (() => readBootstrapFromHtml(base)))().catch(() => null);
+    const fromPage = await (readBootstrap || (() => readBootstrapFromHtml(base)))().catch((e) => {
+      if (e.status === 429) throw e;
+      return null;
+    });
     if (fromPage?.accessToken) return fromPage;
 
     if (networkError) throw new UsageError(`Could not reach ChatGPT (${networkError.message})`, 'network');
@@ -136,6 +164,7 @@
   // `base` is the page origin from the content script, or chatgpt.com from the background worker.
   // A rate limit from the reset details request is returned alongside valid usage.
   async function fetchUsage({ base = ORIGIN, accountHint = null, readBootstrap = null } = {}) {
+    const startedAt = Date.now();
     for (let attempt = 0; attempt < 2; attempt++) {
       const auth = await getAuth(base, accountHint, readBootstrap);
       const headers = { Accept: 'application/json', Authorization: `Bearer ${auth.token}` };
@@ -153,7 +182,7 @@
         cachedAuth = null;
         continue;
       }
-      if (res.status === 429) throw rateLimitError(res);
+      if (res.status === 429) throw rateLimitError(res, 'usage');
       if (!res.ok) throw new UsageError(`Usage request failed (HTTP ${res.status})`, 'http', res.status);
 
       let raw;
@@ -169,10 +198,10 @@
         try {
           const resets = await fetch(base + RESET_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(10000) });
           if (resets.ok) resetCredits = await resets.json();
-          if (resets.status === 429) rateLimit = errorRecord(rateLimitError(resets));
+          if (resets.status === 429) rateLimit = errorRecord(rateLimitError(resets, 'reset details'), startedAt);
         } catch { /* Hide resets until their availability can be checked again. */ }
       }
-      return { raw, resetCredits, rateLimit, accountId: auth.accountId, fetchedAt: Date.now() };
+      return { raw, resetCredits, rateLimit, accountId: auth.accountId, startedAt, fetchedAt: Date.now() };
     }
     throw new UsageError('Usage request was rejected', 'http', 401);
   }
@@ -365,6 +394,9 @@
     UsageError,
     errorRecord,
     nextUsageBackoff,
+    USAGE_RECOVERY_MS,
+    formatPollDelay,
+    backoffMessage,
     parseBootstrap,
     fetchUsage,
     consumeReset,

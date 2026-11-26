@@ -53,12 +53,28 @@
         <button id="copy-debug" type="button">Copy</button>
         <button id="clear-log" type="button">Clear log</button>
       </div>
-      <h2>Status</h2>
-      <pre id="debug-status"></pre>
-      <h2>Log</h2>
+      <h2>Polling status</h2>
+      <dl class="debug-status">
+        <dt>State</dt><dd id="poll-state"></dd>
+        <dt>Interval</dt><dd id="poll-interval"></dd>
+        <dt>Last update</dt><dd id="poll-updated"></dd>
+        <dt>Next eligible update</dt><dd id="poll-next"></dd>
+        <dt>Last rate limit</dt><dd id="poll-limited"></dd>
+        <dt>Server retry time</dt><dd id="poll-server"></dd>
+        <dt>Recovery</dt><dd id="poll-recovery"></dd>
+        <dt>Last error</dt><dd id="poll-error"></dd>
+      </dl>
+      <p class="debug-note">Automatic updates run while a ChatGPT tab is open. Hidden tabs may update less often.</p>
+      <h2>Recent events</h2>
       <pre id="debug-log"></pre>
-      <h2>Last response</h2>
-      <pre id="debug-raw"></pre>
+      <details class="debug-details">
+        <summary>Usage details</summary>
+        <pre id="debug-status"></pre>
+      </details>
+      <details class="debug-details">
+        <summary>Last raw response</summary>
+        <pre id="debug-raw"></pre>
+      </details>
     </details>
   </div>
 

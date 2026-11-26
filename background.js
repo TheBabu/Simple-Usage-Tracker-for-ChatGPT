@@ -18,9 +18,17 @@ function serialized(task) {
   return run;
 }
 
-async function appendLog(message) {
+async function appendLog(message, level = 'info') {
   const { debugLog = [] } = await chrome.storage.local.get('debugLog');
-  debugLog.push({ t: Date.now(), message: String(message).slice(0, 500) });
+  const entry = { t: Date.now(), level, message: String(message).slice(0, 500) };
+  const last = debugLog.at(-1);
+  // Normal polls often return identical usage every ten seconds. Keep the history of meaningful
+  // changes, but still show how often and how recently an unchanged result was received.
+  if (level === 'success' && last?.level === level && last.message === entry.message) {
+    debugLog[debugLog.length - 1] = { ...entry, firstAt: last.firstAt ?? last.t, count: (last.count || 1) + 1 };
+  } else {
+    debugLog.push(entry);
+  }
   await chrome.storage.local.set({ debugLog: debugLog.slice(-LOG_LIMIT) });
 }
 
@@ -64,6 +72,22 @@ function recordBalance(ledger, usage) {
   return spent;
 }
 
+async function logBackoff(previous, backoff, error) {
+  if (previous === backoff) return;
+  if (!backoff) {
+    await appendLog('Polling recovered: back to 10s on visible ChatGPT tabs', 'success');
+    return;
+  }
+  const interval = CGUT.formatPollDelay(backoff.interval);
+  const next = new Date(backoff.retryAt).toLocaleString();
+  if (error) {
+    const server = error.retryAt > error.at ? `; Retry-After: ${new Date(error.retryAt).toLocaleString()}` : '';
+    await appendLog(`Polling backed off to ${interval}; next eligible attempt at ${next}${server}`, 'warning');
+  } else if (!previous?.recoveryStartedAt) {
+    await appendLog(`Retry succeeded; keeping ${interval} polling until 5 minutes of successful retries. Next eligible attempt at ${next}`, 'info');
+  }
+}
+
 async function storeUsage(fetched) {
   const usage = CGUT.normalizeUsage(fetched.raw, fetched.fetchedAt, fetched.accountId, fetched.resetCredits);
   const { usage: previous, creditLedger = {}, usageBackoff } = await chrome.storage.local.get(['usage', 'creditLedger', 'usageBackoff']);
@@ -72,36 +96,39 @@ async function storeUsage(fetched) {
   if (previous && previous.accountId === usage.accountId && previous.fetchedAt >= usage.fetchedAt) return;
 
   const spent = recordBalance(creditLedger, usage);
-  const backoff = CGUT.nextUsageBackoff(usageBackoff, fetched.rateLimit, usage.fetchedAt);
+  const backoff = CGUT.nextUsageBackoff(usageBackoff, fetched.rateLimit, usage.fetchedAt, fetched.startedAt);
   await chrome.storage.local.set({
     usage, usageError: null, creditLedger,
     ...(backoff !== usageBackoff && { usageBackoff: backoff }),
   });
-  if (fetched.rateLimit) await appendLog(fetched.rateLimit.message);
-  await appendLog(describeUsage(usage, spent));
+  if (fetched.rateLimit) await appendLog(fetched.rateLimit.message + ' (usage still updated)', 'warning');
+  await logBackoff(usageBackoff, backoff, fetched.rateLimit);
+  await appendLog(describeUsage(usage, spent), 'success');
 }
 
 async function storeError(error) {
-  const updates = { usageError: error };
-  if (error.status === 429) {
-    const { usageBackoff } = await chrome.storage.local.get('usageBackoff');
-    updates.usageBackoff = CGUT.nextUsageBackoff(usageBackoff, error);
-  }
-  await chrome.storage.local.set(updates);
-  await appendLog(`Update failed: ${error.message}`);
+  const { usageBackoff } = await chrome.storage.local.get('usageBackoff');
+  const backoff = CGUT.nextUsageBackoff(usageBackoff, error);
+  await chrome.storage.local.set({
+    usageError: error,
+    ...(backoff !== usageBackoff && { usageBackoff: backoff }),
+  });
+  await appendLog(`Update failed: ${error.message}`, error.status === 429 ? 'warning' : 'error');
+  await logBackoff(usageBackoff, backoff, error);
 }
 
 async function fetchInBackground(options) {
   const { usageBackoff } = await chrome.storage.local.get('usageBackoff');
   if (Date.now() < (usageBackoff?.retryAt ?? 0)) {
-    return { ok: false, error: 'ChatGPT is rate limiting usage updates' };
+    return { ok: false, error: CGUT.backoffMessage(usageBackoff) };
   }
+  const startedAt = Date.now();
   try {
     const fetched = await CGUT.fetchUsage(options);
     await serialized(() => storeUsage(fetched));
     return { ok: true };
   } catch (e) {
-    const error = CGUT.errorRecord(e);
+    const error = CGUT.errorRecord(e, startedAt);
     await serialized(() => storeError(error));
     return { ok: false, error: error.message };
   }
@@ -155,6 +182,7 @@ const handlers = {
   'cgut:store': (message) => serialized(() => storeUsage(message.fetched)),
   'cgut:error': (message) => serialized(() => storeError(message.error)),
   'cgut:log': (message) => log(message.message),
+  'cgut:clear-log': () => serialized(() => chrome.storage.local.set({ debugLog: [] })),
   'cgut:refresh': () => refreshNow(),
   'cgut:use-reset': (message) => useReset(message),
 };
