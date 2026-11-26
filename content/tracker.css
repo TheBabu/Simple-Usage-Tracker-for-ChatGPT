@@ -210,6 +210,11 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   padding-top: 0;
 }
 
+/* Match the popup's spacing between the inline heading and the first reset. */
+.cgut-sidebar .cgut-reset-heading + .cgut-reset-list {
+  margin-top: 8px;
+}
+
 /* Keep the reset name and expiration together; don't reserve room for hidden buttons. */
 .cgut-sidebar .cgut-reset-item {
   margin-top: 0;
