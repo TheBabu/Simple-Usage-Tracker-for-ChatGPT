@@ -215,16 +215,21 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
   margin-top: 8px;
 }
 
-/* Keep the reset name and expiration together; don't reserve room for hidden buttons. */
+/* Give the reset details their natural width; move the buttons below only when they won't fit. */
 .cgut-sidebar .cgut-reset-item {
+  display: flex;
+  flex-wrap: wrap;
   margin-top: 0;
+  column-gap: 4px;
   row-gap: var(--cgut-sidebar-detail-gap);
 }
 
 .cgut-sidebar .cgut-reset-details {
   display: flex;
   flex-direction: column;
-  gap: var(--cgut-sidebar-detail-gap);
+  flex: 1 1 auto;
+  width: max-content;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -234,8 +239,11 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 }
 
 .cgut-sidebar .cgut-reset-actions {
-  grid-row: 1;
   width: auto;
+  max-width: 100%;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .cgut-sidebar .cgut-reset-details > .cgut-row-sub {
@@ -245,33 +253,10 @@ html.cgut-hide-usage-limit-banner div:has(> .contents:only-child > .cgut-usage-l
 
 /* Confirmation needs two buttons; put them below the details rather than squeezing the title. */
 .cgut-sidebar .cgut-reset-item:has(.cgut-reset-cancel:not([hidden])) .cgut-reset-details {
-  grid-column: 1 / -1;
-}
-
-.cgut-sidebar .cgut-reset-item:has(.cgut-reset-cancel:not([hidden])) .cgut-reset-actions {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  justify-self: end;
-  flex-wrap: wrap;
+  flex-basis: 100%;
 }
 
 .cgut-sidebar .cgut-reset-list {
   display: flex;
   flex-direction: column;
-  container-type: inline-size;
-}
-
-/* On narrow sidebars, give the details the full width so the name can stay on one line. */
-@container (width < 14rem) {
-  .cgut-sidebar .cgut-reset-details,
-  .cgut-sidebar .cgut-reset-actions {
-    grid-column: 1 / -1;
-  }
-
-  .cgut-sidebar .cgut-reset-actions {
-    grid-row: 2;
-    justify-self: end;
-    max-width: 100%;
-    flex-wrap: wrap;
-  }
 }
