@@ -35,31 +35,6 @@ I don't plan to to actively maintain this extension, as this is just a something
 2. Go to `chrome://extensions` and turn on **Developer mode**.
 3. Click **Load unpacked** and choose the unzipped folder.
 
-## Optional Available Resets dropdown
-
-By default, **Available Resets** appears below the bars in the collapsible **Usage** section.
-If you have a long list of resets, you can give **Available Resets** its own collapsible section
-with a command in the extension's DevTools console.
-
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Find Simple Usage Tracker for ChatGPT and click **service worker** under Inspect views.
-3. Run this command in the **Console** tab.
-
-```js
-chrome.storage.local.set({ separateResetsDropdown: true })
-```
-
-You can also open DevTools on `chatgpt.com`. In the **Console** tab, open the context dropdown
-labeled **top** and select **Simple Usage Tracker for ChatGPT** before running the command.
-
-To put **Available Resets** back under **Usage**, run the following in the same console.
-
-```js
-chrome.storage.local.set({ separateResetsDropdown: false })
-```
-
-The setting is saved and takes effect in open ChatGPT tabs automatically.
-
 ## Privacy Policy
 
 **What it accesses:** While you're signed in to chatgpt.com, the extension uses your existing
