@@ -138,6 +138,11 @@
     return resetsAt <= now ? 'Resetting…' : `Resets in ${formatDuration(resetsAt - now)}`;
   }
 
+  function setLimitReset(node, resetsAt, now) {
+    node.textContent = resetText(resetsAt, now);
+    node.classList.toggle('cgut-resetting', !!resetsAt && resetsAt <= now);
+  }
+
   // ---------- Rows ----------
 
   function createLimitRow() {
@@ -156,12 +161,7 @@
     r.label.textContent = label;
     setPct(r.pct, win.pct, display);
     setProgress(r.progress, win.pct, display);
-    updateLimitReset(r, win, now);
-  }
-
-  function updateLimitReset(r, win, now) {
-    r.reset.textContent = resetText(win.resetsAt, now);
-    r.reset.classList.toggle('cgut-resetting', !!win.resetsAt && win.resetsAt <= now);
+    setLimitReset(r.reset, win.resetsAt, now);
   }
 
   function createCreditsRow() {
@@ -198,6 +198,13 @@
     path.setAttribute('d', pathData);
     svg.append(path);
     return svg;
+  }
+
+  function clearResetConfirmation(row) {
+    row.confirming = false;
+    row.cancel.hidden = true;
+    row.button.classList.remove('cgut-reset-confirm');
+    row.button.textContent = 'Use Reset';
   }
 
   // ---------- Panel: the stack of rows shown in the sidebar and the popup ----------
@@ -294,10 +301,7 @@
             }
           });
           cancel.addEventListener('click', () => {
-            row.confirming = false;
-            cancel.hidden = true;
-            button.classList.remove('cgut-reset-confirm');
-            button.textContent = 'Use Reset';
+            clearResetConfirmation(row);
             button.title = '';
             button.setAttribute('aria-label', `Use Reset: ${row.title.textContent}`);
             button.focus();
@@ -348,10 +352,7 @@
         }
       } finally {
         this.resetPending = false;
-        row.confirming = false;
-        row.cancel.hidden = true;
-        row.button.classList.remove('cgut-reset-confirm');
-        row.button.textContent = 'Use Reset';
+        clearResetConfirmation(row);
         this.renderResets(this.usage, Date.now());
       }
     }
@@ -380,6 +381,7 @@
     setMarker,
     clearMarker,
     resetText,
+    setLimitReset,
     UsagePanel,
   };
 })();

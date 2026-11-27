@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
+import { loadTracker } from './helpers/tracker.mjs';
 
-const source = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
 const shellMarker = '[data-sidebar-navigation-root]';
 const scrollMarker = '[data-app-action-sidebar-scroll]';
 const activeRailDestination = '[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]';
@@ -97,9 +96,11 @@ function sidebar(...pageChildren) {
     getComputedStyle: (node) => ({ visibility: node.visibility, display: node.display, flexDirection: 'column' }),
     requestAnimationFrame: (callback) => frames.push(callback),
   });
-  vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.sidebar = { findSidebarAnchor, isUsageDestination, onMountMutations, mountSidebar, removeSidebar, setSeparateResetsDropdown, setCollapsed, setResetsCollapsed, sidebar };'), ctx);
-  return { ...ctx.CGUT.sidebar, frames, location: ctx.location };
+  const bindings = loadTracker(ctx, [
+    'findSidebarAnchor', 'isUsageDestination', 'onMountMutations', 'mountSidebar', 'removeSidebar',
+    'setSeparateResetsDropdown', 'setCollapsed', 'setResetsCollapsed', 'sidebar',
+  ]);
+  return { ...bindings, frames, location: ctx.location };
 }
 
 test('uses the active chat scroller and skips destinations that retain it offscreen', () => {

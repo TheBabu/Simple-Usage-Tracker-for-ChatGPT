@@ -387,8 +387,7 @@
       ui.clearMarker(bar.progress);
     }
 
-    bar.reset.textContent = ui.resetText(main.resetsAt, now);
-    bar.reset.classList.toggle('cgut-resetting', !!main.resetsAt && main.resetsAt <= now);
+    ui.setLimitReset(bar.reset, main.resetsAt, now);
     ui.setTip(bar.reset, freshError
       ? `Last update failed (${freshError.message}). Showing data from ${CGUT.formatAgo(usage.fetchedAt, now)}.`
       : `Updated ${CGUT.formatAgo(usage.fetchedAt, now)}`);

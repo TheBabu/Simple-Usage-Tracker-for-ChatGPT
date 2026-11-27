@@ -1,4 +1,4 @@
-# Builds the extension zip on every pull request, and publishes a GitHub release whenever a
+# Tests and builds the extension on every pull request, and publishes a GitHub release whenever a
 # push to main changes the version in manifest.json. Configured releases also go to the Chrome
 # Web Store. See RELEASING.md.
 name: Release
@@ -39,6 +39,10 @@ jobs:
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Test
+        if: github.event_name == 'pull_request'
+        run: npm test
 
       - name: Build
         run: node scripts/build.mjs

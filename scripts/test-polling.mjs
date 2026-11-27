@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
+import { loadTracker } from './helpers/tracker.mjs';
 
 const source = readFileSync(new URL('../shared/usage.js', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../background.js', import.meta.url), 'utf8');
-const tracker = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
 const raw = { rate_limit: { primary_window: { used_percent: 37, limit_window_seconds: 18000 } } };
 const json = (data, options) => Response.json(data, options);
 
@@ -172,15 +172,20 @@ test('visible tabs start at 10 seconds, share fresh usage, and honor the cooldow
     return json({ ...raw, rate_limit_reset_credits: { available_count: 0 } }, { status });
   });
   const scheduled = [];
-  ctx.document = { documentElement: { dataset: {} }, hidden: false };
+  ctx.document = {
+    documentElement: { dataset: {} }, hidden: false,
+    createElement: () => ({
+      append() {}, replaceChildren() {}, addEventListener() {}, setAttribute() {}, classList: { add() {} },
+    }),
+  };
   ctx.location = { origin: 'https://chatgpt.com' };
   ctx.navigator = { locks: { request: async (_name, _options, callback) => callback({}) } };
   ctx.setTimeout = (_callback, delay) => scheduled.push(delay);
   ctx.clearTimeout = () => {};
   ctx.chrome.runtime.id = 'test';
-  const scheduling = tracker.split('  // ---------- Replies and credit spend ----------')[0];
-  vm.runInContext(scheduling + '  CGUT.tab = { state, refresh };\n})();', ctx);
-  const tab = ctx.CGUT.tab;
+  const ui = readFileSync(new URL('../shared/ui.js', import.meta.url), 'utf8');
+  vm.runInContext(ui, ctx, { filename: 'shared/ui.js' });
+  const tab = loadTracker(ctx, ['state', 'refresh']);
   ctx.chrome.runtime.sendMessage = async (message) => {
     await sendMessage(message);
     tab.state.usage = storage.usage;

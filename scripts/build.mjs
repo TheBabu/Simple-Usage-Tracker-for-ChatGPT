@@ -22,7 +22,7 @@ function fail(message) {
 // Chrome accepts one to four dot-separated integers.
 if (!/^\d+(\.\d+){0,3}$/.test(manifest.version)) fail(`manifest version "${manifest.version}" is not valid for Chrome`);
 
-// Catch a file the manifest points at but the package would leave out.
+// Report missing manifest references before walking the package directories.
 const referenced = [
   manifest.background?.service_worker,
   manifest.action?.default_popup,
@@ -55,6 +55,12 @@ function listFiles(path) {
 }
 
 const files = INCLUDE.flatMap(listFiles).map((path) => path.split(sep).join('/'));
+
+const packagedFiles = new Set(files);
+for (const file of referenced) {
+  const archivePath = relative(ROOT, join(ROOT, file)).split(sep).join('/');
+  if (!packagedFiles.has(archivePath)) fail(`manifest refers to file outside the package: ${file}`);
+}
 
 // Catch a script that doesn't parse before it ships. Each one is only compiled, never run.
 for (const file of files.filter((name) => name.endsWith('.js'))) {

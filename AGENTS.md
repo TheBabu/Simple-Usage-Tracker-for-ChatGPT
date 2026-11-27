@@ -22,9 +22,9 @@ Chrome 111. The only site it talks to is chatgpt.com.
 | `shared/ui.js`, `ui.css` | Progress bars, rows and the tooltip shared by the sidebar and the popup. |
 | `popup/` | The toolbar popup: usage, options (percentages as used or left, and the bar in the message box can be turned off), and a Debug section with the log and the last raw response. |
 | `release-notes/` | The Release Notes page. The notes themselves, written for users, are in `changelog.json`, which GitHub releases use too; `versions.js` compares versions for the page, the worker and the release script. |
-| `scripts/build.mjs` | Packs `dist/*.zip`. Fails if a script doesn't parse or the manifest names a missing file; warns when the version has no release notes. |
+| `scripts/build.mjs` | Packs `dist/*.zip`. Validates script syntax and checks that the ZIP contains every file named in the manifest. Warns when the version has no release notes. |
 | `scripts/release-notes.mjs` | Writes the GitHub release notes from `release-notes/changelog.json`. |
-| `.github/workflows/release.yml` | A build on every PR; a release when `main` gets a new version, with its notes from `release-notes/changelog.json`. |
+| `.github/workflows/release.yml` | Tests and a build on every PR. A new version on `main` gets a release with notes from `release-notes/changelog.json`. |
 
 The scripts share code through one global, `globalThis.CGUT`, so load order matters: `usage.js`
 first, then `ui.js` or `release-notes/versions.js` add to it. The shipped code uses no ES modules, because
@@ -35,13 +35,13 @@ content scripts can't.
 Node 22 or newer.
 
 - `npm run build`: packs `dist/simple-tracker-for-chatgpt-v<version>.zip`.
-- `npm test`: checks reset handling and composer mode detection.
+- `npm test` checks manual Resets, composer and sidebar behavior, usage polling, and debug output.
 - By hand: `chrome://extensions` → Developer mode → Load unpacked → the repo root. After an edit,
   press Reload on the extension, then reload the chatgpt.com tab for content script changes.
 
 Before you call a change done:
 
-1. `npm run build` passes.
+1. `npm test` and `npm run build` pass.
 2. If you can, load the extension in a browser and check the change yourself; don't hand that to
    the maintainer. For anything you couldn't check (most things on chatgpt.com need a signed-in
    account), say what wasn't tested.
@@ -117,5 +117,5 @@ change. No analytics and no third-party requests.
 - **Commits:** a short imperative summary ("Stop the composer bar jittering when switching Chat to
   Work"), then a body saying what was wrong and why the change fixes it.
 - **Branches:** the maintainer prefers changes pushed straight to `main`, without a pull request
-  or a leftover branch. CI only runs on pull requests, so run the checks under "Commands" before
-  pushing.
+  or a leftover branch. The test suite runs in CI on pull requests. Run the checks under
+  "Commands" before pushing to `main`.

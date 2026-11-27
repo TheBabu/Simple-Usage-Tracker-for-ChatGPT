@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
-
-const source = readFileSync(new URL('../content/tracker.js', import.meta.url), 'utf8');
+import { loadTracker } from './helpers/tracker.mjs';
 
 function composer({ placeholder = '', surface = '', search = '', pathname = '/', pressed = -1, chatComposer = false } = {}) {
   let now = 10000;
@@ -69,11 +67,8 @@ function composer({ placeholder = '', surface = '', search = '', pathname = '/',
     setTimeout(callback) { timers.add(callback); return callback; },
     clearTimeout: (callback) => timers.delete(callback),
   });
-  // Inspect the real content-script decisions without starting polling or a browser lifecycle.
-  vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
-    '  CGUT.composer = { detectMode, updateMode, barWanted, mountBar, bar, state };'), ctx);
   return {
-    ...ctx.CGUT.composer,
+    ...loadTracker(ctx, ['detectMode', 'updateMode', 'barWanted', 'mountBar', 'bar', 'state']),
     advance: () => { now += 6000; },
     hasClass: (name) => classes.has(name),
     finishTimers() {
