@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.8",
+    "date": "2026-11-26",
+    "title": "Restore Usage to the top of the sidebar",
+    "changes": [
+      "Usage appears just below New chat and above the conversation sections in the Home and Codex sidebars, even when the sidebar groups its sections inside a wrapper."
+    ]
+  },
+  {
     "version": "1.2.7",
     "date": "2026-11-26",
     "title": "Refine sidebar reset spacing",

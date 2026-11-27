@@ -16,6 +16,7 @@ function element(...selectors) {
     children: [],
     visibility: 'visible',
     hasLayout: true,
+    display: 'block',
     classList: {
       add: (...names) => names.forEach((name) => classes.add(name)),
       remove: (...names) => names.forEach((name) => classes.delete(name)),
@@ -93,7 +94,7 @@ function sidebar(...pageChildren) {
   const ctx = vm.createContext({
     CGUT: { ui }, document,
     location: { pathname: '/' },
-    getComputedStyle: (node) => ({ visibility: node.visibility }),
+    getComputedStyle: (node) => ({ visibility: node.visibility, display: node.display, flexDirection: 'column' }),
     requestAnimationFrame: (callback) => frames.push(callback),
   });
   vm.runInContext(source.replace(/  init\(\)\.catch\([^\n]+;/,
@@ -291,4 +292,80 @@ test('defaults to a single Usage section and preserves reset rows when switching
   mountSidebar();
   assert.equal(panel.resets.hidden, true);
   assert.equal(view.resets.body.hidden, false);
+});
+
+test('places Usage above nested conversation sections in Home and Codex', () => {
+  for (const destination of ['home', 'codex']) {
+    const rail = element(activeRailDestination, `[data-sidebar-destination="builtin:${destination}"]`);
+    const shell = element(shellMarker);
+    const scroll = element(scrollMarker);
+    const group = element();
+    const newChat = element();
+    const projects = element('[data-app-action-sidebar-section]');
+    const recents = element('[data-app-action-sidebar-section]');
+    group.append(newChat, projects, recents);
+    scroll.append(group);
+    shell.append(scroll);
+    const { mountSidebar, sidebar: panel, setSeparateResetsDropdown } = sidebar(rail, shell);
+    mountSidebar();
+    assert.deepEqual(group.children, [newChat, panel.usage.root, projects, recents]);
+    setSeparateResetsDropdown(true);
+    mountSidebar();
+    assert.deepEqual(group.children, [newChat, panel.usage.root, panel.resets.root, projects, recents]);
+
+    // A retained sidebar can move the native sections under a new wrapper on navigation.
+    const replacement = element();
+    replacement.append(projects, recents);
+    group.remove();
+    scroll.append(replacement);
+    mountSidebar();
+    assert.deepEqual(replacement.children, [panel.usage.root, panel.resets.root, projects, recents]);
+  }
+});
+
+test('does not anchor to hidden native sidebar sections', () => {
+  const scroll = element(scrollMarker);
+  const hiddenGroup = element();
+  hiddenGroup.hasLayout = false;
+  hiddenGroup.append(element('[data-app-action-sidebar-section]'));
+  const visibleGroup = element();
+  const projects = element('[data-app-action-sidebar-section]');
+  visibleGroup.append(projects);
+  scroll.append(hiddenGroup, visibleGroup);
+  const { mountSidebar, sidebar: panel } = sidebar(scroll);
+  mountSidebar();
+  assert.deepEqual(visibleGroup.children, [panel.usage.root, projects]);
+});
+
+
+test('mounts in the native section layout when New chat is in the fixed header', () => {
+  const shell = element(shellMarker);
+  const header = element();
+  const newChat = element();
+  const scroll = element(scrollMarker);
+  const layout = element();
+  layout.display = 'flex';
+  const outerWrapper = element();
+  const innerWrapper = element();
+  const spacer = element();
+  const projectsWrapper = element();
+  const recentsWrapper = element();
+  const projects = element('[data-app-action-sidebar-section]');
+  const recents = element('[data-app-action-sidebar-section]');
+  header.append(newChat);
+  projectsWrapper.append(projects);
+  recentsWrapper.append(recents);
+  innerWrapper.append(spacer, projectsWrapper, recentsWrapper);
+  outerWrapper.append(innerWrapper);
+  layout.append(outerWrapper);
+  scroll.append(layout);
+  shell.append(header, scroll);
+  const { mountSidebar, setSeparateResetsDropdown, sidebar: panel } = sidebar(shell);
+  mountSidebar();
+  assert.deepEqual(shell.children, [header, scroll]);
+  assert.deepEqual(scroll.children, [layout]);
+  assert.deepEqual(layout.children, [panel.usage.root, outerWrapper]);
+  setSeparateResetsDropdown(true);
+  mountSidebar();
+  assert.deepEqual(layout.children, [panel.usage.root, panel.resets.root, outerWrapper]);
 });

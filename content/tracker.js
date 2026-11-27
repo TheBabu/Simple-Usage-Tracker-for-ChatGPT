@@ -58,7 +58,7 @@
       { selector: '#history', mode: 'before' },
       { selector: 'nav[aria-label="Chat history"]', mode: 'append' },
     ],
-    sidebarSections: '[data-app-action-sidebar-section], .contents:has([data-app-action-sidebar-section])',
+    sidebarSections: '[data-app-action-sidebar-section]',
     stopButton: 'button[data-testid="stop-button"]',
     // Scope the generic "Stop" label to the active composer so other panels cannot trigger a refresh.
     stopButtonInComposer: 'button:is([aria-label="Stop" i], [aria-label="Stop streaming" i], [aria-label="Stop generating" i])',
@@ -70,7 +70,7 @@
   };
 
   const SIDEBAR_ANCHORS = [
-    SELECTORS.activeRailDestination, SELECTORS.sidebarShell, SELECTORS.sidebarScroll,
+    SELECTORS.activeRailDestination, SELECTORS.sidebarShell, SELECTORS.sidebarScroll, SELECTORS.sidebarSections,
     ...SELECTORS.legacySidebar.map(({ selector }) => selector),
   ].join(', ');
 
@@ -582,7 +582,24 @@
     // Home and Codex share a conversations scroller. Other destinations can retain it offscreen.
     const root = shell || document;
     const scroll = Array.from(root.querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
-    if (scroll) return { node: scroll, mode: 'afterFirstChild' };
+    if (scroll) {
+      // The first child can be a wrapper around Projects and Recents rather than the New chat
+      // row. Insert before the first native section, even when the sections are nested.
+      const section = Array.from(scroll.querySelectorAll(SELECTORS.sidebarSections))
+        .find((node) => isSidebarVisible(node) || Array.from(node.children).some(isSidebarVisible));
+      if (section) {
+        // Use the native section layout, not the individual section's drag/drop wrapper.
+        // The current sidebar puts New chat in the header, outside this flex column.
+        for (let node = section; node.parentElement !== scroll; node = node.parentElement) {
+          const style = getComputedStyle(node.parentElement);
+          if (style.display === 'flex' && style.flexDirection === 'column') {
+            return { node, mode: 'before' };
+          }
+        }
+        return { node: section, mode: 'before' };
+      }
+      return { node: scroll, mode: 'afterFirstChild' };
+    }
 
     for (const { selector, mode } of SELECTORS.legacySidebar) {
       const node = Array.from(root.querySelectorAll(selector)).findLast(isSidebarVisible);
@@ -922,7 +939,7 @@
       subtree: true,
       attributeFilter: [
         'aria-busy', 'aria-current', 'aria-hidden', 'aria-label', 'aria-pressed', 'aria-placeholder', 'class', 'placeholder',
-        'data-app-action-sidebar-scroll', 'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder',
+        'data-app-action-sidebar-scroll', 'data-app-action-sidebar-section', 'data-app-shell-active-page', 'data-chatgpt-composer', 'data-placeholder',
         'data-sidebar-collapsed', 'data-sidebar-destination', 'data-sidebar-navigation-root', 'data-slate-sidebar-content', 'hidden', 'inert', 'style',
       ],
     });
