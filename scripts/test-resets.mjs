@@ -161,7 +161,7 @@ function element() {
 
 test('panel hides empty/expired lists, requires confirmation, supports cancel and blocks duplicate clicks', async () => {
   const ctx = context();
-  ctx.document = { createElement: element };
+  ctx.document = { createElement: element, createElementNS: element };
   ctx.crypto = { randomUUID };
   const requests = [];
   let finish;
@@ -187,12 +187,20 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
   row.button.click();
   assert.equal(requests.length, 0);
   assert.equal(row.cancel.hidden, false);
-  assert.equal(row.button.textContent, 'Confirm');
+  assert.equal(row.button.children[0].attributes['aria-hidden'], 'true');
+  assert.equal(row.button.children[0].children[0].attributes.d, 'm5 12 4 4L19 6');
+  assert.equal(row.cancel.children[0].children[0].attributes.d, 'M18 6 6 18 M6 6l12 12');
+  assert.equal(row.button.title, 'Confirm');
+  assert.equal(row.cancel.title, 'Cancel');
+  assert.equal(row.button.attributes['aria-label'], 'Confirm Reset: Weekly Reset');
+  assert.equal(row.cancel.attributes['aria-label'], 'Cancel Reset: Weekly Reset');
   assert.equal(row.button.classList.contains('cgut-reset-confirm'), true);
   assert.ok(row.cancel.className.includes('cgut-reset-cancel'));
   row.cancel.click();
   assert.equal(row.confirming, false);
   assert.equal(row.button.classList.contains('cgut-reset-confirm'), false);
+  assert.equal(row.button.textContent, 'Use Reset');
+  assert.equal(row.button.title, '');
   assert.equal(requests.length, 0);
   row.button.click();
   // Periodic rendering must preserve the confirmation and its focused button.
@@ -203,6 +211,8 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
   row.button.click();
   assert.equal(requests.length, 1);
   assert.equal(row.button.disabled, true);
+  assert.equal(row.button.textContent, 'Resetting…');
+  assert.equal(row.button.classList.contains('cgut-reset-confirm'), false);
   assert.equal(requests[0].accountId, accountId);
   assert.equal(requests[0].creditId, credit.id);
   finish({ ok: true });
@@ -214,7 +224,7 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
 
 test('failed resets require confirmation again, reuse IDs only for uncertain outcomes, and never cross accounts', async () => {
   const ctx = context();
-  ctx.document = { createElement: element };
+  ctx.document = { createElement: element, createElementNS: element };
   ctx.crypto = { randomUUID };
   const requests = [];
   let reuseRequestId = false;

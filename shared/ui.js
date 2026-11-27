@@ -182,6 +182,24 @@
       : 'None used this month';
   }
 
+  function createResetIcon(pathData) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', pathData);
+    svg.append(path);
+    return svg;
+  }
+
   // ---------- Panel: the stack of rows shown in the sidebar and the popup ----------
 
   class UsagePanel {
@@ -253,7 +271,9 @@
           const expiry = el('div', 'cgut-row-sub');
           const actions = el('div', 'cgut-reset-actions');
           const button = el('button', 'cgut-reset-button', 'Use Reset');
-          const cancel = el('button', 'cgut-reset-button cgut-reset-cancel', 'Cancel');
+          const cancel = el('button', 'cgut-reset-button cgut-reset-cancel');
+          cancel.append(createResetIcon('M18 6 6 18 M6 6l12 12'));
+          cancel.title = 'Cancel';
           button.type = cancel.type = 'button';
           cancel.hidden = true;
           details.append(title, expiry);
@@ -268,7 +288,8 @@
               row.confirming = true;
               cancel.hidden = false;
               button.classList.add('cgut-reset-confirm');
-              button.textContent = 'Confirm';
+              button.replaceChildren(createResetIcon('m5 12 4 4L19 6'));
+              button.title = 'Confirm';
               button.setAttribute('aria-label', `Confirm Reset: ${row.title.textContent}`);
             }
           });
@@ -277,6 +298,7 @@
             cancel.hidden = true;
             button.classList.remove('cgut-reset-confirm');
             button.textContent = 'Use Reset';
+            button.title = '';
             button.setAttribute('aria-label', `Use Reset: ${row.title.textContent}`);
             button.focus();
           });
@@ -288,6 +310,7 @@
           year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
         })}`;
         row.button.setAttribute('aria-label', `${row.confirming ? 'Confirm Reset' : 'Use Reset'}: ${row.title.textContent}`);
+        row.cancel.setAttribute('aria-label', `Cancel Reset: ${row.title.textContent}`);
         row.button.disabled = row.cancel.disabled = this.resetPending;
       }
     }
@@ -302,7 +325,9 @@
       this.resetPending = true;
       this.resetStatus.hidden = true;
       row.requestId ||= crypto.randomUUID();
+      row.button.classList.remove('cgut-reset-confirm');
       row.button.textContent = 'Resetting…';
+      row.button.title = '';
       row.cancel.hidden = true;
       this.renderResets(this.usage, Date.now());
       try {

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.9",
+    "date": "2026-11-26",
+    "title": "Compact reset confirmation",
+    "changes": [
+      "A green checkmark and a red X replace the Confirm and Cancel buttons, keeping reset details and actions on the same row whenever space allows."
+    ]
+  },
+  {
     "version": "1.2.8",
     "date": "2026-11-26",
     "title": "Restore Usage to the top of the sidebar",

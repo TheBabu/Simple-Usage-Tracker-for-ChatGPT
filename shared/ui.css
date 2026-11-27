@@ -210,41 +210,41 @@
   line-height: 18px;
 }
 
+/* Keep the details and actions together when they fit, and wrap the actions on narrower layouts. */
 .cgut-reset-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   column-gap: 8px;
+  row-gap: 4px;
   margin-top: 8px;
   overflow-wrap: anywhere;
 }
 
 .cgut-reset-details {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .cgut-reset-title {
-  grid-column: 1;
-  grid-row: 1;
-  align-self: end;
   color: var(--cgut-text);
 }
 
 .cgut-reset-details > .cgut-row-sub {
-  /* The expiration needs the whole row, independent of loading-time sidebar widths. */
-  grid-column: 1 / -1;
-  grid-row: 2;
-  white-space: nowrap;
+  width: auto;
 }
 
 .cgut-reset-actions {
-  grid-column: 2;
-  grid-row: 1 / span 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  /* Reserve both buttons' space before confirmation so the reset details never reflow. */
-  width: 128px;
+  flex-shrink: 0;
+  max-width: 100%;
+  margin-left: auto;
   gap: 4px;
 }
 
@@ -277,6 +277,11 @@
 .cgut-reset-cancel { --cgut-reset-accent: var(--cgut-warn); }
 .cgut-reset-confirm,
 .cgut-reset-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 0;
   color: color-mix(in srgb, var(--cgut-text) 50%, var(--cgut-reset-accent));
   border-color: color-mix(in srgb, var(--cgut-reset-accent) 55%, transparent);
   background: color-mix(in srgb, var(--cgut-reset-accent) 10%, transparent);
