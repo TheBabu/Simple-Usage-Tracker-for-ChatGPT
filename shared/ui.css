@@ -261,7 +261,8 @@
   padding: 4px 8px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 100ms ease;
+  /* Restore the neutral Use Reset button immediately when confirmation is cancelled. */
+  transition: transform 100ms ease;
 }
 
 .cgut-reset-button:active:not(:disabled) { transform: scale(0.97); }
@@ -285,6 +286,7 @@
   color: color-mix(in srgb, var(--cgut-text) 50%, var(--cgut-reset-accent));
   border-color: color-mix(in srgb, var(--cgut-reset-accent) 55%, transparent);
   background: color-mix(in srgb, var(--cgut-reset-accent) 10%, transparent);
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 100ms ease;
 }
 .cgut-reset-confirm:hover,
 .cgut-reset-cancel:hover { background: color-mix(in srgb, var(--cgut-reset-accent) 20%, transparent); }

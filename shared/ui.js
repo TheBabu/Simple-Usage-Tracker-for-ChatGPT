@@ -288,7 +288,7 @@
               row.confirming = true;
               cancel.hidden = false;
               button.classList.add('cgut-reset-confirm');
-              button.replaceChildren(createResetIcon('m5 12 4 4L19 6'));
+              button.replaceChildren(createResetIcon('M5 13 9 17 19 7'));
               button.title = 'Confirm';
               button.setAttribute('aria-label', `Confirm Reset: ${row.title.textContent}`);
             }

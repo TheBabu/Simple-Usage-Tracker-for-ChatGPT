@@ -188,7 +188,7 @@ test('panel hides empty/expired lists, requires confirmation, supports cancel an
   assert.equal(requests.length, 0);
   assert.equal(row.cancel.hidden, false);
   assert.equal(row.button.children[0].attributes['aria-hidden'], 'true');
-  assert.equal(row.button.children[0].children[0].attributes.d, 'm5 12 4 4L19 6');
+  assert.equal(row.button.children[0].children[0].attributes.d, 'M5 13 9 17 19 7');
   assert.equal(row.cancel.children[0].children[0].attributes.d, 'M18 6 6 18 M6 6l12 12');
   assert.equal(row.button.title, 'Confirm');
   assert.equal(row.cancel.title, 'Cancel');
