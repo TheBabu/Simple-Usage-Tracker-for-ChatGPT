@@ -62,20 +62,38 @@
   function pollingStatus(now = Date.now()) {
     const backoff = stored.usageBackoff;
     const error = stored.usageError;
-    const recovering = backoff?.recoveryStartedAt != null;
-    const wait = backoff ? backoff.retryAt - now : 0;
-    const recoveryWait = recovering ? backoff.recoveryStartedAt + CGUT.USAGE_RECOVERY_MS - now : 0;
+    let state = stored.usage ? 'Normal' : 'Waiting for first update';
+    let interval = '10s (visible)';
+    let next = 'Normal schedule';
+    let recovery = '—';
+    if (backoff) {
+      const wait = backoff.retryAt - now;
+      interval = CGUT.formatPollDelay(backoff.interval);
+      next = wait > 0 ? `${CGUT.formatPollDelay(wait)} · ${dateTime(backoff.retryAt)}` : 'Ready on next poll';
+      if (backoff.recoveryStartedAt != null) {
+        state = 'Recovering';
+        const remaining = backoff.recoveryStartedAt + CGUT.USAGE_RECOVERY_MS - now;
+        recovery = remaining > 0
+          ? `10s after ${CGUT.formatPollDelay(remaining)} and a successful retry`
+          : '10s after next successful retry';
+      } else {
+        state = 'Backed off';
+        recovery = 'Waiting for a successful retry';
+      }
+    } else if (error?.code === 'signed-out') {
+      state = 'Signed out';
+      interval = '60s (visible)';
+    } else if (error) {
+      state = 'Update failed';
+    }
     return {
-      state: backoff ? recovering ? 'Recovering' : 'Backed off'
-        : error?.code === 'signed-out' ? 'Signed out' : error ? 'Update failed' : stored.usage ? 'Normal' : 'Waiting for first update',
-      interval: backoff ? CGUT.formatPollDelay(backoff.interval) : error?.code === 'signed-out' ? '60s (visible)' : '10s (visible)',
+      state,
+      interval,
       updated: stored.usage ? `${dateTime(stored.usage.fetchedAt)} (${CGUT.formatAgo(stored.usage.fetchedAt, now)})` : 'Never',
-      next: backoff ? wait > 0 ? `${CGUT.formatPollDelay(wait)} · ${dateTime(backoff.retryAt)}` : 'Ready on next poll' : 'Normal schedule',
+      next,
       limited: dateTime(backoff?.at),
       server: dateTime(backoff?.serverRetryAt ?? (error?.status === 429 ? error.retryAt : null)),
-      recovery: backoff ? recovering ? recoveryWait > 0
-        ? `10s after ${CGUT.formatPollDelay(recoveryWait)} and a successful retry` : '10s after next successful retry'
-        : 'Waiting for a successful retry' : '—',
+      recovery,
       error: error ? error.message : 'None',
     };
   }
@@ -96,11 +114,21 @@
     if (element.textContent !== value) element.textContent = value;
   }
 
+  function debugReport() {
+    return {
+      polling: pollingStatus(),
+      status: JSON.stringify(debugStatus(), null, 2),
+      log: debugLogText(),
+      raw: stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)',
+    };
+  }
+
   function renderDebug() {
-    for (const [key, value] of Object.entries(pollingStatus())) setText(`poll-${key}`, value);
-    setText('debug-status', JSON.stringify(debugStatus(), null, 2));
-    setText('debug-log', debugLogText());
-    setText('debug-raw', stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)');
+    const report = debugReport();
+    for (const [key, value] of Object.entries(report.polling)) setText(`poll-${key}`, value);
+    setText('debug-status', report.status);
+    setText('debug-log', report.log);
+    setText('debug-raw', report.raw);
   }
 
   async function refresh() {
@@ -116,12 +144,13 @@
   }
 
   async function copyDebug() {
+    const report = debugReport();
     const text = [
       'ChatGPT Usage Tracker — polling status',
-      Object.entries(pollingStatus()).map(([key, value]) => `${key}: ${value}`).join('\n'),
-      'Usage details\n' + JSON.stringify(debugStatus(), null, 2),
-      'Recent events (newest first)\n' + debugLogText(),
-      'Last raw response\n' + (stored.usage?.raw ? JSON.stringify(stored.usage.raw, null, 2) : '(none yet)'),
+      Object.entries(report.polling).map(([key, value]) => `${key}: ${value}`).join('\n'),
+      'Usage details\n' + report.status,
+      'Recent events (newest first)\n' + report.log,
+      'Last raw response\n' + report.raw,
     ].join('\n\n');
     await navigator.clipboard.writeText(text);
     $('copy-debug').textContent = 'Copied';

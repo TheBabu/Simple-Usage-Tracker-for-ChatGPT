@@ -114,8 +114,12 @@
 
   const BOOTSTRAP_RE = /<script[^>]*\bid="client-bootstrap"[^>]*>([\s\S]*?)<\/script>/;
 
+  function requestOptions(timeoutMs = USAGE_REQUEST_TIMEOUT_MS) {
+    return { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) };
+  }
+
   async function readBootstrapFromHtml(base) {
-    const res = await fetch(base + '/', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
+    const res = await fetch(base + '/', requestOptions());
     if (res.status === 429) throw rateLimitError(res, 'page bootstrap');
     if (!res.ok) return null;
     return parseBootstrap((await res.text()).match(BOOTSTRAP_RE)?.[1]);
@@ -127,7 +131,7 @@
   async function loadSession(base, readBootstrap) {
     let networkError = null;
     try {
-      const res = await fetch(base + SESSION_PATH, { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
+      const res = await fetch(base + SESSION_PATH, requestOptions());
       if (res.status === 429) throw rateLimitError(res, 'session');
       if (res.ok) {
         const session = await res.json().catch(() => null);
@@ -172,7 +176,7 @@
 
       let res;
       try {
-        res = await fetch(base + USAGE_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS) });
+        res = await fetch(base + USAGE_PATH, { ...requestOptions(), headers });
       } catch (e) {
         throw new UsageError(`Could not reach ChatGPT (${e.message})`, 'network');
       }
@@ -196,7 +200,7 @@
       let rateLimit = null;
       if (raw?.rate_limit_reset_credits?.available_count !== 0) {
         try {
-          const resets = await fetch(base + RESET_PATH, { credentials: 'include', cache: 'no-store', headers, signal: AbortSignal.timeout(10000) });
+          const resets = await fetch(base + RESET_PATH, { ...requestOptions(10000), headers });
           if (resets.ok) resetCredits = await resets.json();
           if (resets.status === 429) rateLimit = errorRecord(rateLimitError(resets, 'reset details'), startedAt);
         } catch { /* Hide resets until their availability can be checked again. */ }
@@ -213,8 +217,7 @@
     const auth = await getAuth(ORIGIN, accountId, null);
     // The credit is selected explicitly; never let a retry consume the next available reset.
     const res = await fetch(ORIGIN + RESET_PATH + '/consume', {
-      method: 'POST', credentials: 'include', cache: 'no-store',
-      signal: AbortSignal.timeout(30000),
+      ...requestOptions(30000), method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json',
         Authorization: `Bearer ${auth.token}`, 'ChatGPT-Account-Id': accountId },
       body: JSON.stringify({ credit_id: creditId, redeem_request_id: requestId }),

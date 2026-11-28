@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { randomUUID } from 'node:crypto';
+import { createWorker } from './helpers/worker.mjs';
 
 const source = readFileSync(new URL('../shared/usage.js', import.meta.url), 'utf8');
 const accountId = '12345678-1234-1234-1234-123456789abc';
@@ -100,35 +101,23 @@ test('a failed POST is never automatically retried', async () => {
 });
 
 test('worker serializes duplicate reset requests and refreshes the selected account', async () => {
-  const ctx = context();
+  const { ctx, storage, sendMessage } = createWorker();
   let posts = 0;
   const refreshed = [];
-  const stored = { usage: ctx.CGUT.normalizeUsage(usage, Date.now(), accountId, resetCredits) };
+  storage.usage = ctx.CGUT.normalizeUsage(usage, Date.now(), accountId, resetCredits);
   ctx.CGUT.consumeReset = async () => { posts++; };
   ctx.CGUT.fetchUsage = async (options) => {
     refreshed.push(options.accountHint);
     return { raw: usage, accountId, fetchedAt: Date.now() + 1, resetCredits: { available_count: 0, credits: [] } };
   };
-  ctx.importScripts = () => {};
-  let onMessage;
-  ctx.chrome = {
-    storage: { local: {
-      get: async () => stored,
-      set: async (value) => Object.assign(stored, value),
-    } },
-    runtime: { onMessage: { addListener: (fn) => { onMessage = fn; } }, onInstalled: { addListener() {} } },
-    windows: { onCreated: { addListener() {} } },
-  };
-  vm.runInContext(readFileSync(new URL('../background.js', import.meta.url), 'utf8'), ctx);
-  const send = (message) => new Promise((resolve) => onMessage(message, {}, resolve));
   const request = { type: 'cgut:use-reset', accountId, creditId: credit.id, requestId };
-  const [first, second] = await Promise.all([send(request), send(request)]);
+  const [first, second] = await Promise.all([sendMessage(request), sendMessage(request)]);
   assert.equal(first.ok, true);
   assert.equal(second.ok, false);
   assert.equal(posts, 1);
-  assert.equal(stored.usage.manualResets.length, 0);
-  assert.ok(refreshed.every((id) => id === accountId));
-  assert.equal((await send({ ...request, accountId: requestId })).ok, false);
+  assert.equal(storage.usage.manualResets.length, 0);
+  assert.deepEqual(refreshed, [accountId]);
+  assert.equal((await sendMessage({ ...request, accountId: requestId })).ok, false);
   assert.equal(posts, 1);
 });
 

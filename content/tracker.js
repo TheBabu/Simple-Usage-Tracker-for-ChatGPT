@@ -573,6 +573,22 @@
     return !/^\/(?:space|spaces|scheduled|plugins|skills)(?:\/|$)/.test(location.pathname);
   }
 
+  function findScrollAnchor(scroll) {
+    // New chat can be followed by a wrapper around Projects and Recents. Insert before
+    // the first visible native section even when the sections are nested.
+    const section = Array.from(scroll.querySelectorAll(SELECTORS.sidebarSections))
+      .find((node) => isSidebarVisible(node) || Array.from(node.children).some(isSidebarVisible));
+    if (!section) return { node: scroll, mode: 'afterFirstChild' };
+
+    // With New chat in the fixed header, use the native sections' flex column so its spacing
+    // applies to Usage too. Otherwise, use the section itself as the insertion point.
+    for (let node = section; node.parentElement !== scroll; node = node.parentElement) {
+      const style = getComputedStyle(node.parentElement);
+      if (style.display === 'flex' && style.flexDirection === 'column') return { node, mode: 'before' };
+    }
+    return { node: section, mode: 'before' };
+  }
+
   function findSidebarAnchor() {
     const shells = Array.from(document.querySelectorAll(SELECTORS.sidebarShell));
     const shell = shells.findLast(isSidebarVisible);
@@ -581,24 +597,7 @@
     // Home and Codex share a conversations scroller. Other destinations can retain it offscreen.
     const root = shell || document;
     const scroll = Array.from(root.querySelectorAll(SELECTORS.sidebarScroll)).findLast(isSidebarVisible);
-    if (scroll) {
-      // The first child can be a wrapper around Projects and Recents rather than the New chat
-      // row. Insert before the first native section, even when the sections are nested.
-      const section = Array.from(scroll.querySelectorAll(SELECTORS.sidebarSections))
-        .find((node) => isSidebarVisible(node) || Array.from(node.children).some(isSidebarVisible));
-      if (section) {
-        // Use the native section layout, not the individual section's drag/drop wrapper.
-        // The current sidebar puts New chat in the header, outside this flex column.
-        for (let node = section; node.parentElement !== scroll; node = node.parentElement) {
-          const style = getComputedStyle(node.parentElement);
-          if (style.display === 'flex' && style.flexDirection === 'column') {
-            return { node, mode: 'before' };
-          }
-        }
-        return { node: section, mode: 'before' };
-      }
-      return { node: scroll, mode: 'afterFirstChild' };
-    }
+    if (scroll) return findScrollAnchor(scroll);
 
     for (const { selector, mode } of SELECTORS.legacySidebar) {
       const node = Array.from(root.querySelectorAll(selector)).findLast(isSidebarVisible);
@@ -829,15 +828,11 @@
     } else if (mode === 'before') {
       before = node;
     }
-    if (resets) {
-      if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== resets.root ||
-          resets.root.nextElementSibling !== before) {
-        parent.insertBefore(usage.root, before);
-        parent.insertBefore(resets.root, before);
-      }
-    } else if (usage.root.parentElement !== parent || usage.root.nextElementSibling !== before) {
-      parent.insertBefore(usage.root, before);
-    }
+    if (usage.root.parentElement === parent && usage.root.nextElementSibling === (resets?.root ?? before)
+        && (!resets || resets.root.nextElementSibling === before)) return;
+
+    parent.insertBefore(usage.root, before);
+    if (resets) parent.insertBefore(resets.root, before);
   }
 
   function ensureMounted() {

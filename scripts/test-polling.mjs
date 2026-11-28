@@ -3,35 +3,19 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { loadTracker } from './helpers/tracker.mjs';
+import { createWorker } from './helpers/worker.mjs';
 
-const source = readFileSync(new URL('../shared/usage.js', import.meta.url), 'utf8');
-const worker = readFileSync(new URL('../background.js', import.meta.url), 'utf8');
 const raw = { rate_limit: { primary_window: { used_percent: 37, limit_window_seconds: 18000 } } };
 const json = (data, options) => Response.json(data, options);
 
 function setup(fetch) {
   let now = Date.parse('2026-11-20T12:00:00Z');
-  const storage = {};
-  let receive;
-  const ctx = vm.createContext({
-    fetch, AbortSignal, atob,
+  const { ctx, storage, sendMessage } = createWorker({
+    fetch,
     Date: class extends Date {
       static now() { return now; }
     },
-    importScripts() {},
-    chrome: {
-      storage: { local: { get: async () => ({ ...storage }), set: async (updates) => Object.assign(storage, updates) } },
-      runtime: {
-        onMessage: { addListener: (fn) => { receive = fn; } },
-        onInstalled: { addListener() {} },
-      },
-      tabs: { query: async () => [] },
-      windows: { onCreated: { addListener() {} } },
-    },
   });
-  vm.runInContext(source, ctx);
-  vm.runInContext(worker, ctx);
-  const sendMessage = (message) => new Promise((resolve) => receive(message, {}, resolve));
   return {
     ctx,
     storage,
